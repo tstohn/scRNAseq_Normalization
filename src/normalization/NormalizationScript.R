@@ -14,9 +14,9 @@ library(edgeR)
 # NORNALIZATION FUNCTIONS
 
 #outlier removal
-is_value_outside_sd<-function(value_vector, sd)
+is_value_outside_sd<-function(value_vector, sd, mean)
 {
-  return(any(value_vector > 5*sd))
+  return(any( (value_vector > mean+5*sd) | (value_vector < mean-5*sd) ))
 }
 prefilter_dataset<-function(data)
 {
@@ -24,17 +24,14 @@ prefilter_dataset<-function(data)
   ab_ids_to_filter<-c()
   
   #filter AB first, bcs according to AB outliers samples are removed
-  #FILTER ANTI-BODIES with mean overall (treatment, sample, ...) count < 40
-  outlier_lowUmi<- data %>%
+  #FILTER ANTI-BODIES with median over all AB(treatment, sample, ...) count < 40
+  outlier_lowUmi_ab<- data %>%
     select(sample_id, ab_id, ab_count) %>%
-    pivot_wider(names_from = sample_id, values_from = ab_count) %>%
-    column_to_rownames("ab_id") %>%
-    mutate(mean=rowMeans(., na.rm = TRUE)) %>%
-    filter(mean < 40) %>%
-    rownames_to_column(var="ab_id") %>%
-    select(ab_id, mean)
+    group_by(ab_id) %>%
+    summarise(median = median(ab_count)) %>%
+    filter(median < 40)
   
-  ab_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_lowUmi$ab_id))
+  ab_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_lowUmi_ab$ab_id))
   data <- data[ !data$ab_id %in% ab_ids_to_filter, ]
   
   #FILTER SAMPLES
@@ -42,12 +39,21 @@ prefilter_dataset<-function(data)
     select(sample_id, ab_id, ab_count) %>%
     pivot_wider(names_from = sample_id, values_from = ab_count) %>%
     rowwise() %>% 
-    mutate(sd = sd(across(starts_with("plate")), na.rm = TRUE))
+    mutate(sd = sd(across(starts_with("plate")), na.rm = TRUE),
+           mean = rowMeans(across(starts_with("plate")), na.rm = TRUE))
   outlier_sd<-outlier_sd %>%
-    purrr::map_df(is_value_outside_sd, outlier_sd$sd) %>%
+    purrr::map_df(is_value_outside_sd, outlier_sd$sd, outlier_sd$mean) %>%
     select(-sd, -ab_id) %>%
     pivot_longer(cols = everything()) %>%
     filter(value == TRUE)
+  
+  #simply based on first dataset, many low count samples were seen
+  #maybe integrate a statistic approach
+  outlier_lowUmi_sample<- data %>%
+    select(sample_id, ab_id, ab_count) %>%
+    group_by(sample_id) %>%
+    summarise(sum = sum(ab_count)) %>%
+    filter(sum < 25000)
   
   outlier_na<- data %>%
     select(sample_id, ab_id, ab_count) %>%
@@ -59,14 +65,32 @@ prefilter_dataset<-function(data)
 
   sample_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_sd$name))
   sample_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_na$sample_id))
-
+  sample_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_lowUmi_sample$sample_id))
+  
+  print(paste0("Removing outliers: ", length(unique(sample_ids_to_filter))))
   data <- data[ !data$sample_id %in% sample_ids_to_filter,]
   
   return(data)
 }
 
-remove_batch_effect<-function(data)
+remove_batch_effect_manually <- function(data){
+   data %>%
+     group_by(ab_id) %>%
+     dplyr::mutate(overall_median_ab_count = median(ab_count_normalized)) %>%
+     group_by(ab_id, batch_id) %>%
+     dplyr::mutate(plate_median_ab_count = median(ab_count_normalized)) %>%
+     dplyr::mutate(ab_count_normalized = (ab_count_normalized/plate_median_ab_count) *
+                     overall_median_ab_count) %>%
+     select(-overall_median_ab_count, -plate_median_ab_count) %>%
+     ungroup()
+}
+
+remove_batch_effect<-function(data, log_transform = FALSE)
 {
+  if(log_transform)
+  {
+    data <- data %>% mutate(ab_count_normalized = log(ab_count_normalized))
+  }
   matrix_for_batch_correction<-select(data, sample_id, ab_id, ab_count_normalized) %>%
     pivot_wider(names_from = sample_id, values_from = ab_count_normalized) %>%
     column_to_rownames("ab_id") %>%
@@ -117,12 +141,17 @@ run_tmm<-function(data)
   return(normalized_data)
 }
 
+run_subsampling<-function(data)
+{
+  
+}
+
 run_normalization<-function(dataset, method)
 {
   datapath<-get_dataset_path()
   datapath<-paste(datapath, "/", dataset, sep="")
-  output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), dataset)
   data<-read_tsv(datapath)
+  dir.create(paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset)), showWarnings = TRUE)
   
   columns = get_dataset_specific_column_names(datapath)
   data <- data %>%
@@ -141,8 +170,26 @@ run_normalization<-function(dataset, method)
   {
     normalized_data<- data %>% 
       run_tmm() %>%
-      remove_batch_effect()
+      remove_batch_effect(log_transform = TRUE)
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/TMM.tsv")
     write_tsv(normalized_data, file=output_table)
+  }
+  else if(method=="SUBSAMPLING")
+  {
+    
+
+  }
+  else if(method=="SCTRANSFORM")
+  {
+
+  }
+  else if(method=="CLR_COMPOSITIONS")
+  {
+
+  }
+  else
+  {
+    print(paste0("WARNING: No normalization metjod called: ", method))
   }
 }
 
