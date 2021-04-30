@@ -5,12 +5,14 @@
 # 2. <name of dataset inside the dataset directory specified in settings.ini 
 #     or 'ALL' to run for all datasets>
 
-library(tidyverse)
+suppressPackageStartupMessages(library(tidyverse))
+options(tidyverse.quiet = TRUE)
 library(dplyr, warn.conflicts = FALSE)
 options(dplyr.summarise.inform = FALSE)
 library(here)
 library(splitstackshape)
 source(here("src/normalization", "functions.R"))
+library(limma)
 
 library(edgeR)
 
@@ -204,7 +206,7 @@ run_normalization<-function(dataset, method)
 {
   datapath<-get_dataset_path()
   datapath<-paste(datapath, "/", dataset, sep="")
-  data<-read_tsv(datapath)
+  data<-read_tsv(datapath, col_types = cols())
   dir.create(paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset)), showWarnings = TRUE)
   
   columns = get_dataset_specific_column_names(datapath)
