@@ -6,7 +6,10 @@
 #     or 'ALL' to run for all datasets>
 
 library(tidyverse)
+library(dplyr, warn.conflicts = FALSE)
+options(dplyr.summarise.inform = FALSE)
 library(here)
+library(splitstackshape)
 source(here("src/normalization", "functions.R"))
 
 library(edgeR)
@@ -29,7 +32,8 @@ prefilter_dataset<-function(data)
     select(sample_id, ab_id, ab_count) %>%
     group_by(ab_id) %>%
     summarise(median = median(ab_count)) %>%
-    filter(median < 40)
+    filter(median < 40) %>%
+    ungroup()
   
   ab_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_lowUmi_ab$ab_id))
   data <- data[ !data$ab_id %in% ab_ids_to_filter, ]
@@ -53,7 +57,8 @@ prefilter_dataset<-function(data)
     select(sample_id, ab_id, ab_count) %>%
     group_by(sample_id) %>%
     summarise(sum = sum(ab_count)) %>%
-    filter(sum < 25000)
+    filter(sum < 25000) %>%
+    ungroup()
   
   outlier_na<- data %>%
     select(sample_id, ab_id, ab_count) %>%
@@ -141,9 +146,58 @@ run_tmm<-function(data)
   return(normalized_data)
 }
 
+sample_x_rows_of_sample<-function(sample, data, x)
+{
+  data[data$sample_id == sample, ] %>% 
+    expandRows("ab_count") %>%
+    sample_n(x, replace=FALSE) %>%
+    group_by_all() %>%
+    dplyr::summarise(ab_count_normalized = n()) %>%
+    ungroup()
+}
+
+count_different_ab_for_sample<-function(sample, data)
+{
+  data[data$sample_id == sample, ] %>% 
+    nrow()
+}
+
 run_subsampling<-function(data)
 {
+  #get number of antibodies per sample before subsampling 
+  #(subsampling might introduce empty AB counts that must be removed)
+  ab_number_before_subsampling <- purrr::map(unique(data$sample_id), count_different_ab_for_sample, data)
+  assertthat::assert_that(length(unique(ab_number_before_subsampling)) == 1)
+  ab_number_before_subsampling <- unique(ab_number_before_subsampling) %>% as.numeric()
   
+  #minimum samplesize to use as subsampling size
+  sample_size <- data %>%
+    group_by(sample_id) %>%
+    summarise(sum = sum(ab_count)) %>%
+    summarise(min = min(sum)) %>%
+    ungroup() %>%
+    as.numeric()
+    
+  #subsample
+  normalized_data <-
+    purrr::map_dfr(unique(data$sample_id), sample_x_rows_of_sample, data, sample_size)
+    
+  #remove new zero AB counts
+  sample_ids_to_filter<-c()
+  outlier <- normalized_data %>% group_by(sample_id) %>%
+    summarise(n = n()) %>%
+    filter(n != ab_number_before_subsampling) %>%
+    ungroup()
+  sample_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier$sample_id))
+  if(length(sample_ids_to_filter) > 0)
+  {
+    print(paste0("WARNING: Removing ", length(sample_ids_to_filter), " samples due to zero AB counts after subsampling"))
+  }
+  #quality check, arbitrarily set threshold to not remove more than 10% of samples due to subsampling
+  assertthat::assert_that(length(sample_ids_to_filter) < 0.1*length(unique(data$sample_id)))
+  normalized_data <- normalized_data[ !normalized_data$sample_id %in% sample_ids_to_filter,]
+  
+  return(normalized_data)
 }
 
 run_normalization<-function(dataset, method)
@@ -176,8 +230,11 @@ run_normalization<-function(dataset, method)
   }
   else if(method=="SUBSAMPLING")
   {
-    
-
+    normalized_data<- data %>% 
+      run_subsampling() %>%
+      remove_batch_effect(log_transform = TRUE)
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/SUBSAMPLED.tsv")
+    write_tsv(normalized_data, file=output_table)
   }
   else if(method=="SCTRANSFORM")
   {
