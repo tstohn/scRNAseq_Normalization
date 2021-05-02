@@ -8,7 +8,7 @@ normalization:
 #creates a directory with all benchmarks for every dataset found in bin/NORMALIZED_DATASETS
 benchmark:
 	mkdir -p bin/BENCHMARKED_DATASETS
-	source scRNAseq/bin/activate
+	. ./scRNAseq/bin/activate && \
 	python3 src/benchmark/benchmark.py bin/NORMALIZED_DATASETS
 
 clean_dataset:
