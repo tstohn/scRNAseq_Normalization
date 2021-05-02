@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 #class handling the normalized data
 
 #dictionary from file name to content
