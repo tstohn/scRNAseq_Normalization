@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 import sys
 from datasetParsingFunctions import load_datasets_for_benchmark
-import NormalizedDataHandler
+from NormalizedDataHandler import NormalizedDataHandler
 
 def make_benchmark(dataset):
-    print(dataset)
+    benchmark = NormalizedDataHandler(dataset)
+    benchmark.dt_classification()
 
 def main():
     if(len(sys.argv) != 2):
@@ -13,7 +14,7 @@ def main():
     print("Running benchmark of normalized scRNAseq data from: "+sys.argv[1]+"\n")
 
     datasets = load_datasets_for_benchmark(sys.argv[1])
-    print("Found " + str(len(datasets)) + "datasets to run normalization benchmark on")
+    print("Found " + str(len(datasets)) + " datasets to run normalization benchmark on")
 
     #make classifications
     for dataset in datasets:
