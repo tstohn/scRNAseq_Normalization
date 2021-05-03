@@ -8,8 +8,6 @@ from sklearn.datasets import make_classification
 from sklearn.model_selection import cross_val_score, KFold, GridSearchCV, RandomizedSearchCV
 from sklearn.tree import DecisionTreeClassifier
 
-from functions import *
-
 #class handling the normalized data
 
 #dictionary from file name to content
@@ -38,9 +36,7 @@ class NormalizedDataHandler:
 
         #assert no nans imported
         array_sum = np.sum(feature_array)
-        if(np.isnan(array_sum)):
-            print('ERROR: Detected nan value in dataset: ABORT!')
-            exit(1)
+        assert(not np.isnan(array_sum))
 
         colum_order_from_feature_array = d_organized.loc[:,'sample_id']
         sample_cluster_d = data.loc[:,['sample_id','cluster_id']]
