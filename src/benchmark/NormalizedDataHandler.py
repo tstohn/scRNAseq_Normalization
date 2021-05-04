@@ -6,33 +6,28 @@ from random import randint
 
 from sklearn.datasets import make_classification
 from sklearn.model_selection import cross_val_score, KFold, GridSearchCV, RandomizedSearchCV
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import *
+from sklearn.neighbors import KNeighborsClassifier
+
+import graphviz
+
 
 #class handling the normalized data
 
 #dictionary from file name to content
 
-#function to build classifiers for the datasets in dict
-
+#function to build classifiers for the datasets in dict 
 
 class NormalizedDataHandler:
-    
-    def __init__(self, file_list):
-        data_dict = dict()
-        for file in file_list:
-            data_name = os.path.basename(os.path.splitext(file)[0])
-            data_content = pd.read_csv(file, sep = '\t')
-            data_dict[data_name] = data_content
-        self.data = data_dict 
 
-    #private classification metods running on SINGLE method
-    def __dt_classification(self, data_name):
+    def __init_classification(self, data_name, classification_dict):
         data = self.data[data_name]
-        
+
         #organize data
         d_pivot=data.pivot(index='sample_id', columns='ab_id', values='ab_count_normalized')
         d_organized = pd.DataFrame(d_pivot.to_records())
         feature_array = d_organized.drop('sample_id',1).values.tolist()
+        feature_ids = d_organized.drop('sample_id',1).columns.tolist()
 
         #assert no nans imported
         array_sum = np.sum(feature_array)
@@ -46,29 +41,103 @@ class NormalizedDataHandler:
         class_array = sample_cluster_d.loc[:, 'cluster_id'].values
 
         X=feature_array
-        y=class_array
+        Y=class_array
 
-        #run classification
+        classification_dict[data_name] = {"X": X, "Y": Y, "FEATURES": feature_ids}
+    
+    def __init__(self, file_list):
+        data_dict = dict()
+        classification_dict = dict()
+        #generate dictionary of normalized data
+        for file in file_list:
+            data_name = os.path.basename(os.path.splitext(file)[0])
+            data_content = pd.read_csv(file, sep = '\t')
+            data_dict[data_name] = data_content
+        self.data = data_dict
+        self.class_data = classification_dict
+        #generate dictionary of classification arrays for normalized data
+        for key in self.data:
+            self.__init_classification(key, classification_dict)
+
+        #open output file for writing
+        folder_path = os.path.dirname(file_list[0])
+        folder_name = os.path.basename(folder_path)
+        os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
+        self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results.tsv", "a")
+        self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
+
+    #def __del__(self):
+        #self.results.close()
+
+    def __classify(self, data_name, model, params, method_string):
+        X=self.class_data.get(data_name, {}).get('X')
+        Y=self.class_data.get(data_name, {}).get('Y')
+
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=1)
+        search = RandomizedSearchCV(model, params, n_iter = 20, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
+        cv_outer = KFold(n_splits=5, shuffle=True, random_state=1)
+        scores = cross_val_score(search, X, Y, scoring='accuracy', cv=cv_outer, n_jobs=-1)
+        print('%s Accuracy[%s] : %.3f (%.3f)' % (method_string, data_name, np.mean(scores), np.std(scores)))
+        
+        self.results.write(data_name + "\t" + method_string + "\t" + str(round(np.mean(scores), 2)) + "\t" + str(round(np.std(scores), 2)) + "\n")
+
+    #private classification metods running on SINGLE method
+    def __knn_classification(self, data_name, method_string):
+        model = KNeighborsClassifier(algorithm='auto')
+        feature_array=self.class_data.get(data_name, {}).get('X')
+        params = {"n_neighbors": range(1, 30),
+                  "leaf_size": range(20,40),
+                  "p": [1,2],
+                  "weights": ["uniform", "distance"],
+                  "metric": ["minkowski", "chebyshev"]}
+        self.__classify(data_name, model, params, method_string)
+
+    def __dt_classification(self, data_name, method_string):
         model = DecisionTreeClassifier(random_state=1)
+        feature_array=self.class_data.get(data_name, {}).get('X')
         params = {"max_depth": [3, None],
               "max_features": range(10, len(feature_array[1])),
               "min_samples_leaf": range(1, 30),
               "criterion": ["gini", "entropy"]}
-        # define search
-        search = RandomizedSearchCV(model, params, n_iter = 5, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
-        # configure the cross-validation procedure
-        cv_outer = KFold(n_splits=5, shuffle=True, random_state=1)
-        # execute the nested cross-validation
-        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=-1)
-        # report performance
-        print('Accuracy[%s] : %.3f (%.3f)' % (data_name, np.mean(scores), np.std(scores)))
+        self.__classify(data_name, model, params, method_string)
         
     #public classification metods running on ALL normalization methods
-    #def knn_clasification():
+    def knn_clasification(self):
+        for key in self.data:
+            self.__knn_classification(key, "KNN")
 
     #def lg_classification():
 
     def dt_classification(self):
         for key in self.data:
-            self.__dt_classification(key)
+            self.__dt_classification(key, "DecisionTree")
+
+    def draw_dt_graph(self):
+        for data_name in self.data:
+            model = DecisionTreeClassifier(random_state=1)
+            feature_array=self.class_data.get(data_name, {}).get('X')
+            params = {"max_depth": [3, None],
+                "max_features": range(10, len(feature_array[1])),
+                "min_samples_leaf": range(1, 30),
+                "criterion": ["gini", "entropy"]}
+
+            #graph of DC tree
+            cv = KFold(n_splits=5, shuffle=True, random_state=1)
+            X=self.class_data.get(data_name, {}).get('X')
+            Y=self.class_data.get(data_name, {}).get('Y')
+            for train_index, test_index in cv.split(X):
+                print(train_index)
+                X_train, X_test = np.array(X)[train_index], np.array(X)[test_index]
+                y_train, Y_test = np.array(Y)[train_index], np.array(Y)[test_index]
+            #model = model.fit(X_train, y_train)
+            cv_inner = KFold(n_splits=5, shuffle=True, random_state=1)
+            search = RandomizedSearchCV(model, params, n_iter = 20, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
+            search = search.fit(X_train, y_train)
+            model = search.best_estimator_
+            dot_data = export_graphviz(model, out_file=None, 
+                                    feature_names=self.class_data.get(data_name, {}).get('FEATURES'),  
+                                    class_names=np.unique(y_train),
+                                    filled=True,
+                                    precision = 4)
+            graph = graphviz.Source(dot_data, format="png") 
+            graph.render(data_name + "decision_tree_graphivz")

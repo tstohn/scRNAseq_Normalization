@@ -7,7 +7,8 @@ normalization:
 	#RScript src/normalization/NormalizationScript.R CLR_COMPOSITIONS ALL
 #creates a directory with all benchmarks for every dataset found in bin/NORMALIZED_DATASETS
 benchmark:
-	mkdir -p bin/BENCHMARKED_DATASETS
+	rm -r bin/BENCHMARKED_DATASETS
+	mkdir bin/BENCHMARKED_DATASETS
 	. ./scRNAseq/bin/activate && \
 	python3 src/benchmark/benchmark.py bin/NORMALIZED_DATASETS
 

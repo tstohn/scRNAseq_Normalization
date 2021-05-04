@@ -23,7 +23,7 @@ def load_datasets_for_benchmark(dir):
         sub_dir_path = join(dir,sub_dir)
         if(os.path.isdir(sub_dir_path) and not file_list):
             one_dataset_only = False
-            for file in os.listdir(sub_dir_path):
+            for file in listdir_nohidden(sub_dir_path):
                 if(isfile(join(sub_dir_path, file))):
                     file_list.append(join(sub_dir_path, file))
                 else:

@@ -6,6 +6,7 @@ from NormalizedDataHandler import NormalizedDataHandler
 def make_benchmark(dataset):
     benchmark = NormalizedDataHandler(dataset)
     benchmark.dt_classification()
+    benchmark.knn_clasification()
 
 def main():
     if(len(sys.argv) != 2):
