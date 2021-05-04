@@ -15,6 +15,7 @@ source(here("src/normalization", "functions.R"))
 library(limma)
 
 library(edgeR)
+library(compositions)
 
 # NORNALIZATION FUNCTIONS
 
@@ -128,6 +129,7 @@ remove_batch_effect<-function(data, log_transform = FALSE)
 run_tmm<-function(data)
 {
   print("RUNNING TMM NORMALIZATION")
+  #TMM takes data in a matrix of features X samples
   countdata <- data %>%
     select(sample_id, ab_id, ab_count) %>%
     pivot_wider(names_from = ab_id, values_from = ab_count ) %>%
@@ -148,6 +150,26 @@ run_tmm<-function(data)
     left_join(normfactors, by = "sample_id") %>% 
     left_join(libsize, by = "sample_id") %>%  
     mutate(ab_count_normalized = ab_count/(lib_size*normfactor))
+  
+  return(normalized_data)
+}
+
+run_clr<-function(data)
+{
+  print("RUNNING CLR (COMPOSITION) NORMALIZATION")
+  #CLR takes data in a matrix of samples X features
+  countdata <- data %>%
+    select(sample_id, ab_id, ab_count) %>%
+    pivot_wider(names_from = ab_id, values_from = ab_count ) %>%
+    column_to_rownames("sample_id") %>%
+    as.matrix()
+  
+  clr_normalized_counts<-as.data.frame(compositions::clr(countdata)) %>%
+    rownames_to_column(var = "sample_id") %>% 
+    pivot_longer(-sample_id, names_to = "ab_id", values_to = "ab_count_normalized")
+  
+  normalized_data <- data %>%
+    left_join(clr_normalized_counts, by=c("sample_id", "ab_id"))
   
   return(normalized_data)
 }
@@ -248,7 +270,12 @@ run_normalization<-function(dataset, method)
   }
   else if(method=="CLR_COMPOSITIONS")
   {
-
+    #CLR is alraedy a log transformation
+    normalized_data<- data %>% 
+      run_clr() %>%
+      remove_batch_effect(log_transform = FALSE)
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLR.tsv")
+    write_tsv(normalized_data, file=output_table)
   }
   else
   {

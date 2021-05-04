@@ -13,12 +13,7 @@ from sklearn.manifold import TSNE
 import graphviz
 import seaborn as sns
 
-#class handling the normalized data
-
-#dictionary from file name to content
-
-#function to build classifiers for the datasets in dict 
-
+#class handling the normalized data (classifies, tsne visualisation)
 class NormalizedDataHandler:
 
     def __init_classification(self, data_name, classification_dict):
@@ -63,8 +58,9 @@ class NormalizedDataHandler:
         #open output file for writing
         folder_path = os.path.dirname(file_list[0])
         folder_name = os.path.basename(folder_path)
-        os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
-        self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results.tsv", "a")
+        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name):
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
+        self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results.tsv", "w+")
         self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
 
         self.dataset_name = folder_name
