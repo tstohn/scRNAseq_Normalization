@@ -9,7 +9,7 @@ def parse_error(dir):
 
 def listdir_nohidden(dir):
     for file in os.listdir(dir):
-        if not file.startswith('.'):
+        if not (file.startswith('.') or file.startswith('_')):
             yield file
 
 def load_datasets_for_benchmark(dir):

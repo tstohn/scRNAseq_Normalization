@@ -23,6 +23,10 @@ is_value_outside_sd<-function(value_vector, sd, mean)
 {
   return(any( (value_vector > mean+5*sd) | (value_vector < mean-5*sd) ))
 }
+
+#TODO: works only for one dataset now:
+# - remove samples of low total AB counts according to distribution of samples
+# - remove AB wit low median count/ zero count more sophistically
 prefilter_dataset<-function(data)
 {
   sample_ids_to_filter<-c()

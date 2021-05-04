@@ -8,9 +8,10 @@ from sklearn.datasets import make_classification
 from sklearn.model_selection import cross_val_score, KFold, GridSearchCV, RandomizedSearchCV
 from sklearn.tree import *
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.manifold import TSNE
 
 import graphviz
-
+import seaborn as sns
 
 #class handling the normalized data
 
@@ -66,6 +67,9 @@ class NormalizedDataHandler:
         self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results.tsv", "a")
         self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
 
+        self.dataset_name = folder_name
+        self.folder_path = ("bin/BENCHMARKED_DATASETS/"+folder_name+"/")
+
     #def __del__(self):
         #self.results.close()
 
@@ -74,10 +78,10 @@ class NormalizedDataHandler:
         Y=self.class_data.get(data_name, {}).get('Y')
 
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=1)
-        search = RandomizedSearchCV(model, params, n_iter = 20, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
+        search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=1)
         scores = cross_val_score(search, X, Y, scoring='accuracy', cv=cv_outer, n_jobs=-1)
-        print('%s Accuracy[%s] : %.3f (%.3f)' % (method_string, data_name, np.mean(scores), np.std(scores)))
+        print('%s => %s Accuracy[%s] : %.3f (%.3f)' % (self.dataset_name, method_string, data_name, np.mean(scores), np.std(scores)))
         
         self.results.write(data_name + "\t" + method_string + "\t" + str(round(np.mean(scores), 2)) + "\t" + str(round(np.std(scores), 2)) + "\n")
 
@@ -86,7 +90,7 @@ class NormalizedDataHandler:
         model = KNeighborsClassifier(algorithm='auto')
         feature_array=self.class_data.get(data_name, {}).get('X')
         params = {"n_neighbors": range(1, 30),
-                  "leaf_size": range(20,40),
+                  "leaf_size": range(1,len(feature_array[1])),
                   "p": [1,2],
                   "weights": ["uniform", "distance"],
                   "metric": ["minkowski", "chebyshev"]}
@@ -100,6 +104,28 @@ class NormalizedDataHandler:
               "min_samples_leaf": range(1, 30),
               "criterion": ["gini", "entropy"]}
         self.__classify(data_name, model, params, method_string)
+
+    def __draw_tsne(self, data_name):
+        X=self.class_data.get(data_name, {}).get('X')
+        Y=self.class_data.get(data_name, {}).get('Y')
+
+        tsne = TSNE(n_components=2, verbose=0, perplexity=30, n_iter=400).fit_transform(X)
+
+        tsne_df = pd.DataFrame({'X':tsne[:,0],
+                        'Y':tsne[:,1],
+                        'class':Y})
+
+        plt.figure(figsize=(16,10))
+        sns.scatterplot(
+            x="X", y="Y",
+            hue="class",
+            #palette=sns.color_palette("viridis", 4),
+            data=tsne_df,
+            legend="full",
+            alpha=1
+        )
+        plt.savefig(self.folder_path + data_name + "_output.png")
+
         
     #public classification metods running on ALL normalization methods
     def knn_clasification(self):
@@ -111,6 +137,10 @@ class NormalizedDataHandler:
     def dt_classification(self):
         for key in self.data:
             self.__dt_classification(key, "DecisionTree")
+
+    def draw_tsne(self):
+        for key in self.data:
+            self.__draw_tsne(key)
 
     def draw_dt_graph(self):
         for data_name in self.data:
