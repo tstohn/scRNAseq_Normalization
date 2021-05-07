@@ -15,7 +15,7 @@ source(here("src/normalization", "functions.R"))
 library(limma)
 
 library(edgeR)
-library(compositions)
+suppressPackageStartupMessages(library(compositions))
 
 # NORNALIZATION FUNCTIONS
 
@@ -28,7 +28,7 @@ is_value_outside_sd<-function(value_vector, sd, mean)
 #TODO: works only for one dataset now:
 # - remove samples of low total AB counts according to distribution of samples
 # - remove AB wit low median count/ zero count more sophistically
-prefilter_dataset<-function(data)
+prefilter_dataset<-function(data, thresholds)
 {
   sample_ids_to_filter<-c()
   ab_ids_to_filter<-c()
@@ -39,7 +39,7 @@ prefilter_dataset<-function(data)
     select(sample_id, ab_id, ab_count) %>%
     group_by(ab_id) %>%
     summarise(median = median(ab_count)) %>%
-    filter(median < 40) %>%
+    filter(median < as.numeric(thresholds[2])) %>%
     ungroup()
   
   ab_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_lowUmi_ab$ab_id))
@@ -64,7 +64,7 @@ prefilter_dataset<-function(data)
     select(sample_id, ab_id, ab_count) %>%
     group_by(sample_id) %>%
     summarise(sum = sum(ab_count)) %>%
-    filter(sum < 25000) %>%
+    filter(sum < as.numeric(thresholds[1])) %>%
     ungroup()
   
   outlier_na<- data %>%
@@ -99,6 +99,7 @@ remove_batch_effect_manually <- function(data){
 
 remove_batch_effect<-function(data, log_transform = FALSE)
 {
+
   if(log_transform)
   {
     data <- data %>% mutate(ab_count_normalized = log(ab_count_normalized))
@@ -107,22 +108,25 @@ remove_batch_effect<-function(data, log_transform = FALSE)
     pivot_wider(names_from = sample_id, values_from = ab_count_normalized) %>%
     column_to_rownames("ab_id") %>%
     as.matrix() 
+
   sample_order_in_correction_matrix <- colnames(matrix_for_batch_correction)
+
   batch_matrix<- data %>% 
     select(sample_id, batch_id) %>%
     unique()
+
   batch_vector <- batch_matrix[match(sample_order_in_correction_matrix, batch_matrix$sample_id),] %>%
     pull(batch_id)
-  
+
   batch_corrected_data <- limma::removeBatchEffect(matrix_for_batch_correction, batch = batch_vector) %>% 
     as.data.frame() %>% 
     rownames_to_column("ab_id") %>% 
     pivot_longer(-ab_id, names_to = "sample_id", values_to = "ab_count_normalized")
-  
+
   data_norm<-data %>%
     select(-ab_count_normalized) %>% 
     left_join(batch_corrected_data)
-  
+
   return(data_norm)
 }
 
@@ -174,14 +178,33 @@ run_clr<-function(data)
   return(normalized_data)
 }
 
-sample_x_rows_of_sample<-function(sample, data, x)
+sample_x_rows_of_sample<-function(sample, data, x, fill_with_zeros)
 {
-  data[data$sample_id == sample, ] %>% 
+  subsampled_data <- data[data$sample_id == sample, ] %>% 
     expandRows("ab_count") %>%
     sample_n(x, replace=FALSE) %>%
     group_by_all() %>%
     dplyr::summarise(ab_count_normalized = n()) %>%
     ungroup()
+  
+  zero_rows = data[data$sample_id == sample, ] %>%
+    select(-ab_count) %>%
+    mutate(ab_count_normalized = 0) %>%
+    unique()
+  
+  if(fill_with_zeros){
+    subsampled_plus_zero <- subsampled_data %>%
+      full_join(zero_rows) %>%
+      group_by(across(c(-ab_count_normalized))) %>%
+      dplyr::summarise(ab_count_normalized = sum(ab_count_normalized)) %>%
+      ungroup()
+  }
+  else
+  {
+    return(subsampled_data)
+  }
+    
+  return(subsampled_plus_zero)
 }
 
 count_different_ab_for_sample<-function(sample, data)
@@ -207,23 +230,28 @@ run_subsampling<-function(data)
     as.numeric()
     
   #subsample
+  fill_nan_with_zero = TRUE
   normalized_data <-
-    purrr::map_dfr(unique(data$sample_id), sample_x_rows_of_sample, data, sample_size)
-    
+    purrr::map_dfr(unique(data$sample_id), sample_x_rows_of_sample, data, sample_size, fill_nan_with_zero)
+
   #remove new zero AB counts
-  sample_ids_to_filter<-c()
-  outlier <- normalized_data %>% group_by(sample_id) %>%
-    summarise(n = n()) %>%
-    filter(n != ab_number_before_subsampling) %>%
-    ungroup()
-  sample_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier$sample_id))
-  if(length(sample_ids_to_filter) > 0)
+  if(!fill_nan_with_zero)
   {
-    print(paste0("WARNING: Removing ", length(sample_ids_to_filter), " samples due to zero AB counts after subsampling"))
+    sample_ids_to_filter<-c()
+    outlier <- normalized_data %>% group_by(sample_id) %>%
+      summarise(n = n()) %>%
+      filter(n != ab_number_before_subsampling) %>%
+      ungroup()
+    sample_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier$sample_id))
+    if(length(sample_ids_to_filter) > 0)
+    {
+      print(paste0("WARNING: Removing ", length(sample_ids_to_filter), " samples due to zero AB counts after subsampling"))
+    }
+    
+    #quality check, arbitrarily set threshold to not remove more than 10% of samples due to subsampling
+    assertthat::assert_that(length(sample_ids_to_filter) < 0.1*length(unique(data$sample_id)))
+    normalized_data <- normalized_data[ !normalized_data$sample_id %in% sample_ids_to_filter,]
   }
-  #quality check, arbitrarily set threshold to not remove more than 10% of samples due to subsampling
-  assertthat::assert_that(length(sample_ids_to_filter) < 0.1*length(unique(data$sample_id)))
-  normalized_data <- normalized_data[ !normalized_data$sample_id %in% sample_ids_to_filter,]
   
   return(normalized_data)
 }
@@ -236,6 +264,8 @@ run_normalization<-function(dataset, method)
   dir.create(paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset)), showWarnings = TRUE)
   
   columns = get_dataset_specific_column_names(datapath)
+  dataset_processing_variables = get_prefilter_thresholds(datapath)
+  
   data <- data %>%
     rename(
       sample_id=columns[1],
@@ -245,22 +275,29 @@ run_normalization<-function(dataset, method)
       cluster_id=columns[5],
       ab_type=columns[6]
     ) %>%
-    prefilter_dataset()
+    prefilter_dataset(dataset_processing_variables)
   
   print(paste("RUN NORMALIZATION[", method, "] FOR DATASET[", datapath, "]", sep = ""))
   if(method=="TMM")
   {
     normalized_data<- data %>% 
-      run_tmm() %>%
-      remove_batch_effect(log_transform = TRUE)
+      run_tmm() 
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
     output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/TMM.tsv")
     write_tsv(normalized_data, file=output_table)
   }
   else if(method=="SUBSAMPLING")
   {
     normalized_data<- data %>% 
-      run_subsampling() %>%
-      remove_batch_effect(log_transform = TRUE)
+      run_subsampling()
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
+    print("writin")
     output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/SUBSAMPLED.tsv")
     write_tsv(normalized_data, file=output_table)
   }
@@ -272,8 +309,11 @@ run_normalization<-function(dataset, method)
   {
     #CLR is alraedy a log transformation
     normalized_data<- data %>% 
-      run_clr() %>%
-      remove_batch_effect(log_transform = FALSE)
+      run_clr()
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
     output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLR.tsv")
     write_tsv(normalized_data, file=output_table)
   }
