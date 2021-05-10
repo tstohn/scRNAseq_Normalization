@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from random import randint
+from scipy import stats
 
 from sklearn.datasets import make_classification
 from sklearn.model_selection import cross_val_score, KFold, GridSearchCV, RandomizedSearchCV
@@ -49,6 +50,7 @@ class NormalizedDataHandler:
             data_name = os.path.basename(os.path.splitext(file)[0])
             data_content = pd.read_csv(file, sep = '\t')
             data_dict[data_name] = data_content
+        #dictionary with data for all normalization methods
         self.data = data_dict
         self.class_data = classification_dict
         #generate dictionary of classification arrays for normalized data
@@ -62,6 +64,9 @@ class NormalizedDataHandler:
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
         self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results.tsv", "w+")
         self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
+
+        self.sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results_spearman.tsv", "w+")
+        self.sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATION_MEAN" + "\t" + "SPEARMAN_PVALUE_MEAN" + "\n")
 
         self.dataset_name = folder_name
         self.folder_path = ("bin/BENCHMARKED_DATASETS/"+folder_name+"/")
@@ -167,3 +172,35 @@ class NormalizedDataHandler:
                                     precision = 4)
             graph = graphviz.Source(dot_data, format="png") 
             graph.render(data_name + "decision_tree_graphivz")
+
+    def ab_spearman_correlation(self):
+        plt.figure(figsize=(16,10))
+        lengend_labels = []
+        for key in self.data:
+            data = self.data[key]
+
+            #speacial line for a data set where phospho proteins were excluded due to expected correlations
+            #data = data[data['ab_type'] == "total"]
+
+            data_subset = data.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
+            d_pivot=data_subset.pivot(index = "ab_id", columns='sample_id', values='ab_count_normalized')
+            sp, p = stats.spearmanr(d_pivot, axis = 1)
+            dim=len(sp[0])
+            
+            sp_values=list(sp[np.triu_indices(dim,1)])
+            p_values=list(p[np.triu_indices(dim,1)])
+
+            sp_mean = np.mean(sp_values)
+            p_mean = np.mean(p_values)
+
+            self.sp_results.write(key + "\t"+ str(round(sp_mean,4)) + "\t" + str(round(p_mean,4)) + "\n")
+            sns.distplot(x=sp_values, hist=False, kde=True)
+            lengend_labels.append(key)
+        plt.legend(labels=lengend_labels)
+        plt.savefig(self.folder_path +  "spearman_correlations.png")
+
+
+
+
+
+

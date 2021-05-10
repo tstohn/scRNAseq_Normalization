@@ -8,6 +8,7 @@ def make_benchmark(dataset):
     benchmark.dt_classification()
     benchmark.knn_clasification()
     benchmark.draw_tsne()
+    benchmark.ab_spearman_correlation()
 
 def main():
     if(len(sys.argv) != 2):
