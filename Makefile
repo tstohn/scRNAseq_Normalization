@@ -19,4 +19,11 @@ clean_dataset:
 	rm -R bin/NORMALIZED_DATASETS
 clean_benchmark:
 	rm -R bin/BENCHMARKED_DATASETS
-
+update_requirements:
+	. ./scRNAseq/bin/activate && \
+	pip3 freeze > .requirements_Py.txt
+	./.freeze_R.sh
+install_requirements:
+	. ./scRNAseq/bin/activate && \
+	pip3 install -r .requirements_Py.txt
+	./.install_R.sh
