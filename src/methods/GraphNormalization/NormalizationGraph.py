@@ -3,12 +3,13 @@ from scipy import stats
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import statistics
 
 class NormalizationGraph:
 
     #data has following structure:
     #<ab_id | ab_count | batch_id | sample_id>
-    def build_graph_from_data(self):
+    def __build_graph_from_data(self):
 
         #generate a list of sp correlations
         data_table = self.data.loc[:,['sample_id','ab_id', 'ab_count']]
@@ -26,28 +27,18 @@ class NormalizationGraph:
         corr_table = corr_table[~filtered_indices]
         corr_table=corr_table[corr_table['ab_id'] != corr_table['ab_id_2']]
 
+        #make a list of all edges
         edge_list = list()
         for index, row in corr_table.iterrows():
             if(row['pearson'] > 0.9):
                 edge_list.append((row['ab_id'], row['ab_id_2'], {'weight': row['pearson']}))
 
-        print(edge_list[0])
+        #conatruct graph from edge list
         G = nx.Graph()
         G.add_edges_from(edge_list)
 
         nx.draw(G, with_labels=False, font_weight='bold')
-        plt.savefig("graph.png")
-
-        clique_list = list(nx.find_cliques(G))
-        max_clique = list()
-        max = 0
-        for clique in clique_list:
-            if(len(clique) > max):
-                max = len(clique)
-                max_clique = clique
-
-        print(max)
-        print(max_clique)        
+        plt.savefig("graph.png")     
 
         return(G)
 
@@ -57,14 +48,41 @@ class NormalizationGraph:
 
         self.data = data
         #Graph
-        self.G = self.build_graph_from_data()
+        self.G = self.__build_graph_from_data()
  
     #return a table with ID and norm_score column
     def get_normalized_score(self):
         #find max_clique
+        clique_list = list(nx.find_cliques(self.G))
+        max_clique = list()
+        max = 0
+        for clique in clique_list:
+            if(len(clique) > max):
+                max = len(clique)
+                max_clique = clique
+        print(max)
+        print(max_clique)   
 
         #check clique for uniform distribution
 
         #normalize by using these feaures
-        return(1)
+        feature_mean = dict()
+        for feature in max_clique:
+            ab_values = self.data[self.data["ab_id"] == feature]
+            mean = statistics.mean(ab_values["ab_count"])
+            feature_mean[feature] = mean
+
+        normalized_data_frame = pd.DataFrame()
+        for sample in np.unique(self.data["sample_id"]):
+            sample_data = self.data[self.data["sample_id"] == sample].copy()
+            avg_scaling_factor = 0
+            for feature in feature_mean:
+                mean_value = feature_mean[feature]
+                sample_value = sample_data[sample_data["ab_id"] == feature]
+                avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count"])
+
+            avg_scaling_factor = avg_scaling_factor/len(feature_mean)
+            sample_data["ab_count_normalized"] = (sample_data["ab_count"]*avg_scaling_factor)
+            normalized_data_frame = normalized_data_frame.append(sample_data)
+        return(normalized_data_frame)
 

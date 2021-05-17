@@ -8,16 +8,20 @@ def read_data(data_file):
 
 def normalize_data(dataset):
     G = NormalizationGraph(dataset)
-    normalized_scores = G.get_normalized_score()
+    normalized_score_table = G.get_normalized_score()
 
-
+    return(normalized_score_table)
 
 def main():
     if(len(sys.argv) != 2):
         print("ERROR: use script with <python3 graphNormalization.py [directory of datasets]>\n")
         exit(1)
     data = read_data(sys.argv[1])
-    normalize_data(data)
+    result = normalize_data(data)
+
+    print(result)
+
+    result.to_csv("GraphNormalized.tsv", sep='\t')
 
 if __name__ == '__main__':
     main()
