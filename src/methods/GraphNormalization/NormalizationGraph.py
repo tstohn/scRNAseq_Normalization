@@ -4,22 +4,30 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import statistics
+from itertools import combinations
 
-class NormalizationGraph:
+class NormalizationGraph:  
 
     #data has following structure:
     #<ab_id | ab_count | batch_id | sample_id>
-    def __build_graph_from_data(self):
+    def __build_graph_from_data(self, corr_method = "pearson"):
 
         #generate a list of sp correlations
         data_table = self.data.loc[:,['sample_id','ab_id', 'ab_count']]
 
-        data_table=data_table.pivot(index = "ab_id", columns='sample_id', values='ab_count')
+        corr_table = pd.DataFrame()
+        if(corr_method == "spearman"):
+            data_table=data_table.pivot(index = "ab_id", columns='sample_id', values='ab_count')
+            sp = stats.spearmanr(data_table, axis = 1)
+            corr_table = pd.DataFrame(sp.correlation, columns = data_table.index, index = data_table.index)
+            corr_table.reset_index(inplace=True)
+            corr_table = (corr_table.melt(id_vars=['ab_id'],  var_name='ab_id_2', value_name='correlation'))
+        elif(corr_method == "pearson"):
+            data_table = data_table.pivot(index = "sample_id", columns='ab_id', values='ab_count')
+            corr_table = pd.DataFrame(columns = ["ab_id", "ab_id_2", "correlation"])
+            for x,y in (combinations(data_table.columns,2)):
+                corr_table = corr_table.append(pd.DataFrame({"ab_id":[x], "ab_id_2":[y], "correlation":[stats.pearsonr(data_table[x], data_table[y])[0]]}))
 
-        sp = stats.spearmanr(data_table, axis = 1)
-        corr_table = pd.DataFrame(sp.correlation, columns = data_table.index, index = data_table.index)
-        corr_table.reset_index(inplace=True)
-        corr_table = (corr_table.melt(id_vars=['ab_id'],  var_name='ab_id_2', value_name='pearson'))
 
         #filter duplicates from correlation matrix
         filter_cols = corr_table.filter(like='ab_id').values
@@ -30,8 +38,8 @@ class NormalizationGraph:
         #make a list of all edges
         edge_list = list()
         for index, row in corr_table.iterrows():
-            if(row['pearson'] > 0.9):
-                edge_list.append((row['ab_id'], row['ab_id_2'], {'weight': row['pearson']}))
+            if(row['correlation'] > 0.7):
+                edge_list.append((row['ab_id'], row['ab_id_2'], {'weight': row['correlation']}))
 
         #conatruct graph from edge list
         G = nx.Graph()
@@ -82,7 +90,7 @@ class NormalizationGraph:
                 avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count"])
 
             avg_scaling_factor = avg_scaling_factor/len(feature_mean)
-            sample_data["ab_count_normalized"] = (sample_data["ab_count"]*avg_scaling_factor)
+            sample_data["ab_count_normalized"] = np.log((sample_data["ab_count"]*avg_scaling_factor))
             normalized_data_frame = normalized_data_frame.append(sample_data)
         return(normalized_data_frame)
 

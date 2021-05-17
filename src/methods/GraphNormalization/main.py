@@ -19,9 +19,7 @@ def main():
     data = read_data(sys.argv[1])
     result = normalize_data(data)
 
-    print(result)
-
-    result.to_csv("GraphNormalized.tsv", sep='\t')
+    result.to_csv("/Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts/GraphNormalized_x.tsv", sep='\t')
 
 if __name__ == '__main__':
     main()
