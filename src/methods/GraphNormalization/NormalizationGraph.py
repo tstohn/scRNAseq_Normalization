@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import statistics
 from itertools import combinations
+from itertools import combinations
 
 class NormalizationGraph:  
 
@@ -69,9 +70,28 @@ class NormalizationGraph:
                 max = len(clique)
                 max_clique = clique
         print(max)
+        print("Found Clique: ")
         print(max_clique)   
 
-        #check clique for uniform distribution
+        #check clique for uniform distribution among treatments (no different means)
+        cluster_data_table = self.data.loc[:,['sample_id','ab_id', 'ab_count', 'cluster_id']]
+        treatments = cluster_data_table["cluster_id"].unique()
+        treatment_dict = dict()
+        abs = max_clique.copy()
+        test_dict = dict()
+        for t in treatments:
+            treatment_table = cluster_data_table[cluster_data_table["cluster_id"] == t]
+            treatment_table = treatment_table.pivot(index = "sample_id", columns='ab_id', values='ab_count')
+            test_dict[t] = treatment_table
+        for ab in abs:
+            for x,y in (combinations(treatments,2)):
+                ttest, pval = stats.ttest_ind(test_dict[x][ab], test_dict[y][ab])
+                if pval<0.0005:
+                    max_clique.remove(ab)
+                    break
+        print("Clique of not treatment dependant values: ") 
+        print(max_clique)   
+
 
         #normalize by using these feaures
         feature_mean = dict()
