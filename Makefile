@@ -8,6 +8,7 @@ normalization:
 
 make graph_norm:
 	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts/TMM.tsv
+	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts_NoEGFRemoved/TMM.tsv
 #creates a directory with all benchmarks for every dataset found in bin/NORMALIZED_DATASETS
 benchmark:
 	mkdir -p bin/BENCHMARKED_DATASETS

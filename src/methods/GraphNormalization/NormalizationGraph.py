@@ -11,7 +11,7 @@ class NormalizationGraph:
 
     #data has following structure:
     #<ab_id | ab_count | batch_id | sample_id>
-    def __build_graph_from_data(self, corr_method = "pearson"):
+    def __build_graph_from_data(self, corr_method = "spearman"):
 
         #generate a list of sp correlations
         data_table = self.data.loc[:,['sample_id','ab_id', 'ab_count']]
@@ -39,59 +39,70 @@ class NormalizationGraph:
         #make a list of all edges
         edge_list = list()
         for index, row in corr_table.iterrows():
-            if(row['correlation'] > 0.7):
+            if(row['correlation'] > 0.8):
                 edge_list.append((row['ab_id'], row['ab_id_2'], {'weight': row['correlation']}))
 
         #conatruct graph from edge list
         G = nx.Graph()
         G.add_edges_from(edge_list)
 
-        nx.draw(G, with_labels=False, font_weight='bold')
-        plt.savefig("graph.png")     
+        #nx.draw(G, with_labels=True, font_weight='bold')
+        #plt.show()
 
         return(G)
 
+    def __normalize_by_library_size(self, data):
+        data["ab_count_compositional"] = data.apply(lambda row : (row["ab_count"]/sum(data.loc[data["sample_id"]==row["sample_id"],"ab_count"])), axis = 1)
+        return(data)
+    def __calculate_library_size(self, data):
+        data["lib_size"] = data.apply(lambda row : (sum(data.loc[data["sample_id"]==row["sample_id"],"ab_count"])), axis = 1)
+        return(data)
     #initialize graph for normalization
     #vertexes are protein abundancies, edges their correlations
     def __init__(self, data):
 
-        self.data = data
+        #self.data = self.__normalize_by_library_size(data)
+        self.data=data
         #Graph
         self.G = self.__build_graph_from_data()
- 
+
+    def list_of_no_correlated_samples(self, clique_list):
+        new_clique_list = list()
+        for clique in clique_list:
+            cluster_data_table = self.data.loc[:,['sample_id','ab_id', 'ab_count_compositional', 'cluster_id']]
+            treatments = cluster_data_table["cluster_id"].unique()
+            treatment_dict = dict()
+            abs = clique.copy()
+            test_dict = dict()
+            for t in treatments:
+                treatment_table = cluster_data_table[cluster_data_table["cluster_id"] == t]
+                treatment_table = treatment_table.pivot(index = "sample_id", columns='ab_id', values='ab_count_compositional')
+                test_dict[t] = treatment_table
+            for ab in abs:
+                for x,y in (combinations(treatments,2)):
+                    ttest, pval = stats.ttest_ind(test_dict[x][ab], test_dict[y][ab])
+                    if pval<0.0005:
+                        clique.remove(ab)
+                        break
+            new_clique_list.append(clique)
+        return(new_clique_list)  
+
     #return a table with ID and norm_score column
     def get_normalized_score(self):
         #find max_clique
         clique_list = list(nx.find_cliques(self.G))
         max_clique = list()
         max = 0
+
+        #clique_list = self.list_of_no_correlated_samples(clique_list)
+
         for clique in clique_list:
             if(len(clique) > max):
                 max = len(clique)
                 max_clique = clique
         print(max)
         print("Found Clique: ")
-        print(max_clique)   
-
-        #check clique for uniform distribution among treatments (no different means)
-        cluster_data_table = self.data.loc[:,['sample_id','ab_id', 'ab_count', 'cluster_id']]
-        treatments = cluster_data_table["cluster_id"].unique()
-        treatment_dict = dict()
-        abs = max_clique.copy()
-        test_dict = dict()
-        for t in treatments:
-            treatment_table = cluster_data_table[cluster_data_table["cluster_id"] == t]
-            treatment_table = treatment_table.pivot(index = "sample_id", columns='ab_id', values='ab_count')
-            test_dict[t] = treatment_table
-        for ab in abs:
-            for x,y in (combinations(treatments,2)):
-                ttest, pval = stats.ttest_ind(test_dict[x][ab], test_dict[y][ab])
-                if pval<0.0005:
-                    max_clique.remove(ab)
-                    break
-        print("Clique of not treatment dependant values: ") 
-        print(max_clique)   
-
+        print(max_clique)
 
         #normalize by using these feaures
         feature_mean = dict()

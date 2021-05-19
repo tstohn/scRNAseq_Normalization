@@ -1,6 +1,7 @@
 from NormalizationGraph import NormalizationGraph
 import pandas as pd
 import sys
+import os.path
 
 def read_data(data_file):
     data = pd.read_csv(data_file, sep='\t')
@@ -19,7 +20,7 @@ def main():
     data = read_data(sys.argv[1])
     result = normalize_data(data)
 
-    result.to_csv("/Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts/GraphNormalized_x.tsv", sep='\t')
+    result.to_csv("/Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/" + os.path.basename(os.path.dirname(sys.argv[1])) + "/GraphNormalized_x.tsv", sep='\t')
 
 if __name__ == '__main__':
     main()
