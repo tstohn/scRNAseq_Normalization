@@ -125,3 +125,58 @@ class NormalizationGraph:
             normalized_data_frame = normalized_data_frame.append(sample_data)
         return(normalized_data_frame)
 
+    #return a table with ID and norm_score column
+    #normalize over all clusters ith more than 20 nodes and average over those
+    def get_normalized_score_multiClique(self):
+        #find max_clique
+        clique_list = list(nx.find_cliques(self.G))
+        max_clique = list()
+        max = 0
+
+        #clique_list = self.list_of_no_correlated_samples(clique_list)
+        count = 0
+        sorted_clique = sorted(clique_list, key=len, reverse=True)
+        new = list()
+        for el in sorted_clique:
+            if(len(el) > 20):
+                new.append(el)
+        clique_list = new
+        print(len(clique_list))
+
+        weight_list = list()
+        normVector_list = list()
+        for clique in clique_list:
+            normalized_data_frame = pd.DataFrame()
+            print(str(count) + " " + str(len(clique)))
+            #normalize by using these feaures
+            feature_mean = dict()
+            for feature in clique:
+                ab_values = self.data[self.data["ab_id"] == feature]
+                mean = statistics.mean(ab_values["ab_count"])
+                feature_mean[feature] = mean
+
+            sample_vector = np.array([])
+            for sample in np.unique(self.data["sample_id"]):
+                sample_data = self.data[self.data["sample_id"] == sample].copy()
+                avg_scaling_factor = 0
+                for feature in feature_mean:
+                    mean_value = feature_mean[feature]
+                    sample_value = sample_data[sample_data["ab_id"] == feature]
+                    avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count"])
+
+                avg_scaling_factor = avg_scaling_factor/len(feature_mean)
+                sample_vector = np.concatenate((sample_vector, np.log((sample_data["ab_count"]*avg_scaling_factor))))
+                normalized_data_frame = normalized_data_frame.append(sample_data)
+            
+            normVector_list.append(sample_vector)
+            weight_list.append(len(clique))      
+            count += 1
+        weight_list = np.array(weight_list)
+        normVector_list = np.stack(normVector_list)
+
+        norm_matrix = normVector_list.T*weight_list
+        norm_matrix_t = sum(norm_matrix.T)
+
+        normalized_data_frame["ab_count_normalized"] = norm_matrix_t/sum(weight_list)
+        return(normalized_data_frame)    
+

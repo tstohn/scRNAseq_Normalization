@@ -180,7 +180,7 @@ class NormalizedDataHandler:
             data = self.data[key]
 
             #speacial line for a data set where phospho proteins were excluded due to expected correlations
-            #data = data[data['ab_type'] == "total"]
+            data = data[data['ab_type'] == "total"]
 
             data_subset = data.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
             d_pivot=data_subset.pivot(index = "ab_id", columns='sample_id', values='ab_count_normalized')
