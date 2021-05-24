@@ -10,6 +10,10 @@ def make_benchmark(dataset):
     benchmark.draw_tsne()
     benchmark.ab_spearman_correlation()
 
+    #dataset scpecific analyses
+    if(benchmark.dataset_name.startswith("scIDseq-vanEijl")):
+        benchmark.ab_spearman_correlation("total")
+
 def main():
     if(len(sys.argv) != 2):
         print("ERROR: use script with <python3 benchmark.py [directory of several datasets || directory with normalized files of one dataset]>\n")

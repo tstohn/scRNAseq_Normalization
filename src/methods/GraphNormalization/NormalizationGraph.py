@@ -6,6 +6,22 @@ import matplotlib.pyplot as plt
 import statistics
 from itertools import combinations
 from itertools import combinations
+from numpy import mean
+from numpy import var
+from math import sqrt
+
+# function to calculate Cohen's d for independent samples
+def cohend(d1, d2):
+	# calculate the size of samples
+	n1, n2 = len(d1), len(d2)
+	# calculate the variance of the samples
+	s1, s2 = var(d1, ddof=1), var(d2, ddof=1)
+	# calculate the pooled standard deviation
+	s = sqrt(((n1 - 1) * s1 + (n2 - 1) * s2) / (n1 + n2 - 2))
+	# calculate the means of the samples
+	u1, u2 = mean(d1), mean(d2)
+	# calculate the effect size
+	return (u1 - u2) / s
 
 class NormalizationGraph:  
 
@@ -39,7 +55,7 @@ class NormalizationGraph:
         #make a list of all edges
         edge_list = list()
         for index, row in corr_table.iterrows():
-            if(row['correlation'] > 0.8):
+            if(row['correlation'] > 0.7):
                 edge_list.append((row['ab_id'], row['ab_id_2'], {'weight': row['correlation']}))
 
         #conatruct graph from edge list
@@ -61,7 +77,7 @@ class NormalizationGraph:
     #vertexes are protein abundancies, edges their correlations
     def __init__(self, data):
 
-        #self.data = self.__normalize_by_library_size(data)
+        self.data = self.__normalize_by_library_size(data)
         self.data=data
         #Graph
         self.G = self.__build_graph_from_data()
@@ -81,7 +97,8 @@ class NormalizationGraph:
             for ab in abs:
                 for x,y in (combinations(treatments,2)):
                     ttest, pval = stats.ttest_ind(test_dict[x][ab], test_dict[y][ab])
-                    if pval<0.0005:
+                    cohen_d = cohend(test_dict[x][ab], test_dict[y][ab])
+                    if(pval<0.05 and cohen_d >= 0.5):
                         clique.remove(ab)
                         break
             new_clique_list.append(clique)
@@ -94,7 +111,7 @@ class NormalizationGraph:
         max_clique = list()
         max = 0
 
-        #clique_list = self.list_of_no_correlated_samples(clique_list)
+        clique_list = self.list_of_no_correlated_samples(clique_list)
 
         for clique in clique_list:
             if(len(clique) > max):
@@ -130,15 +147,13 @@ class NormalizationGraph:
     def get_normalized_score_multiClique(self):
         #find max_clique
         clique_list = list(nx.find_cliques(self.G))
-        max_clique = list()
-        max = 0
+        clique_list = self.list_of_no_correlated_samples(clique_list)
 
-        #clique_list = self.list_of_no_correlated_samples(clique_list)
         count = 0
         sorted_clique = sorted(clique_list, key=len, reverse=True)
         new = list()
         for el in sorted_clique:
-            if(len(el) > 20):
+            if(len(el) > 7):
                 new.append(el)
         clique_list = new
         print(len(clique_list))

@@ -10,6 +10,7 @@ from sklearn.model_selection import cross_val_score, KFold, GridSearchCV, Random
 from sklearn.tree import *
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.manifold import TSNE
+from sklearn.metrics import confusion_matrix
 
 import graphviz
 import seaborn as sns
@@ -173,14 +174,15 @@ class NormalizedDataHandler:
             graph = graphviz.Source(dot_data, format="png") 
             graph.render(data_name + "decision_tree_graphivz")
 
-    def ab_spearman_correlation(self):
+    def ab_spearman_correlation(self, filter = ""):
         plt.figure(figsize=(16,10))
         lengend_labels = []
         for key in self.data:
             data = self.data[key]
 
             #speacial line for a data set where phospho proteins were excluded due to expected correlations
-            data = data[data['ab_type'] == "total"]
+            if(filter != ""):
+                data = data[data['ab_type'] == filter]
 
             data_subset = data.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
             d_pivot=data_subset.pivot(index = "ab_id", columns='sample_id', values='ab_count_normalized')
@@ -197,7 +199,7 @@ class NormalizedDataHandler:
             sns.distplot(x=sp_values, hist=False, kde=True)
             lengend_labels.append(key)
         plt.legend(labels=lengend_labels)
-        plt.savefig(self.folder_path +  "spearman_correlations.png")
+        plt.savefig(self.folder_path +  "spearman_correlations_" + filter + ".png")
 
 
 
