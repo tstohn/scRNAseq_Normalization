@@ -6,7 +6,7 @@ from random import randint
 from scipy import stats
 
 from sklearn.datasets import make_classification
-from sklearn.model_selection import cross_val_score, KFold, GridSearchCV, RandomizedSearchCV
+from sklearn.model_selection import cross_val_score, cross_val_predict, KFold, GridSearchCV, RandomizedSearchCV
 from sklearn.tree import *
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.manifold import TSNE
@@ -63,6 +63,7 @@ class NormalizedDataHandler:
         folder_name = os.path.basename(folder_path)
         if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name):
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
+        os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/ConfusionMatrices")
         self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results.tsv", "w+")
         self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
 
@@ -77,14 +78,29 @@ class NormalizedDataHandler:
 
     def __classify(self, data_name, model, params, method_string):
         X=self.class_data.get(data_name, {}).get('X')
-        Y=self.class_data.get(data_name, {}).get('Y')
+        y=self.class_data.get(data_name, {}).get('Y')
 
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=1)
         search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=1)
-        scores = cross_val_score(search, X, Y, scoring='accuracy', cv=cv_outer, n_jobs=-1)
-        print('%s => %s Accuracy[%s] : %.3f (%.3f)' % (self.dataset_name, method_string, data_name, np.mean(scores), np.std(scores)))
+        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=-1)
+
+        #plot a confusion matrix
+        y_pred = cross_val_predict(search, X, y, cv=cv_outer, n_jobs=-1)
+        label_list = np.unique(y_pred)
+        conf_mat = confusion_matrix(y, y_pred, labels =label_list)
+        df_cm = pd.DataFrame(conf_mat, range(len(label_list)), range(len(label_list)))
+        plt.figure(figsize=(10,7))
+        sns.set(font_scale=1.4) # for label size
+        ax= plt.subplot()
+        sns.heatmap(df_cm, annot=True, annot_kws={"size": 16}) # font size
+        # labels, title and ticks
+        ax.set_xlabel('Predicted labels');ax.set_ylabel('True labels')
+        ax.set_title('Confusion Matrix')
+        ax.xaxis.set_ticklabels(label_list); ax.yaxis.set_ticklabels(label_list)
+        plt.savefig(self.folder_path + "ConfusionMatrices/" + data_name + method_string + "_CFMatrix.png")
         
+        print('%s => %s Accuracy[%s] : %.3f (%.3f)' % (self.dataset_name, method_string, data_name, np.mean(scores), np.std(scores)))
         self.results.write(data_name + "\t" + method_string + "\t" + str(round(np.mean(scores), 2)) + "\t" + str(round(np.std(scores), 2)) + "\n")
 
     #private classification metods running on SINGLE method

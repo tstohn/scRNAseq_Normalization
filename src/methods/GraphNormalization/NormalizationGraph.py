@@ -45,7 +45,6 @@ class NormalizationGraph:
             for x,y in (combinations(data_table.columns,2)):
                 corr_table = corr_table.append(pd.DataFrame({"ab_id":[x], "ab_id_2":[y], "correlation":[stats.pearsonr(data_table[x], data_table[y])[0]]}))
 
-
         #filter duplicates from correlation matrix
         filter_cols = corr_table.filter(like='ab_id').values
         filtered_indices = pd.DataFrame(np.sort(filter_cols, axis=1)).duplicated()
