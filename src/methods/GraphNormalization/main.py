@@ -7,6 +7,47 @@ from os.path import isfile, join
 
 def read_data(data_file):
     data = pd.read_csv(data_file, sep='\t')
+    filename = os.path.splitext(data_file)[0] + ".ini"
+    col_name_dict = {}
+    with open(filename, 'r') as f:
+        line = f.readline()
+        while (line):
+            if (line.startswith("sample_id")):
+                split=line.split("=")
+                from_val = split[1].rstrip()
+                to_val = split[0]
+                col_name_dict[from_val]=to_val
+            elif(line.startswith("ab_id")):
+                split=line.split("=")
+                from_val = split[1].rstrip()
+                to_val = split[0]
+                col_name_dict[from_val]=to_val
+            elif(line.startswith("ab_count")):
+                split=line.split("=")
+                from_val = split[1].rstrip()
+                to_val = split[0]
+                col_name_dict[from_val]=to_val
+            elif(line.startswith("batch_id")):
+                split=line.split("=")
+                from_val = split[1].rstrip()
+                to_val = split[0]
+                col_name_dict[from_val]=to_val                
+            elif(line.startswith("cluster_id")):
+                split=line.split("=")
+                from_val = split[1].rstrip()
+                to_val = split[0]
+                col_name_dict[from_val]=to_val
+            elif(line.startswith("ab_type")):
+                split=line.split("=")
+                from_val = split[1].rstrip()
+                to_val = split[0]
+                col_name_dict[from_val]=to_val
+            line = f.readline()
+    for key in col_name_dict:
+        print(key)
+        data.rename(columns = {key: col_name_dict[key]}, inplace = True)
+
+    print(data)
     return(data)
 
 def normalize_data(dataset):
@@ -50,7 +91,7 @@ def main():
 
         #for every dataset in this list
         for dataset in dataset_list:
-            output_dir = "bin/BENCHMARKED_DATASETS/" + os.path.basename(os.path.splitext(dataset)[0])
+            output_dir = "bin/NORMALIZED_DATASETS/" + os.path.basename(os.path.splitext(dataset)[0])
             print("Running Graph normalization on: " + dataset)
             run_normalization_on_dataset(dataset, output_dir)
     else:
