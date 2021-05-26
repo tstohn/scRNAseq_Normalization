@@ -13,7 +13,7 @@ deployrUtils::deployrPackage("here")
 deployrUtils::deployrPackage("splitstackshape")
 source(here("src/normalization", "functions.R"))
 library("edgeR")
-suppressPackageStartupMessages(library(compositions))
+suppressPackageStartupMessages(deployrUtils::deployrPackage("compositions"))
 
 # NORNALIZATION FUNCTIONS
 
