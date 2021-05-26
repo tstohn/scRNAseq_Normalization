@@ -53,13 +53,18 @@ def read_data(data_file):
 def normalize_data(dataset):
     G = NormalizationGraph(dataset)
     normalized_score_table = G.get_normalized_score()
-
     return(normalized_score_table)
+
+def ensure_dir(file_path):
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 def run_normalization_on_dataset(data_dir, output_dir = ""):    
     data = read_data(data_dir)
     result = normalize_data(data)
     if(output_dir):
+        ensure_dir(output_dir)
         result.to_csv(output_dir + "/GraphNormalized.tsv", sep='\t')
     else:
         result.to_csv(os.path.dirname(data_dir) + "/GraphNormalized.tsv", sep='\t')
