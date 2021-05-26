@@ -63,7 +63,8 @@ class NormalizedDataHandler:
         folder_name = os.path.basename(folder_path)
         if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name):
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
-        os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/ConfusionMatrices")
+        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/ConfusionMatrices"):
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/ConfusionMatrices")
         self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results.tsv", "w+")
         self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
 

@@ -317,6 +317,11 @@ run_normalization<-function(dataset, method)
     output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLR.tsv")
     write_tsv(normalized_data, file=output_table)
   }
+  else if(method=="EXPORT_FILTERED_DATA")
+  {
+    output_table<-paste0(here("bin/FILTERED_DATASETS/"), tools::file_path_sans_ext(dataset), ".tsv")
+    write_tsv(data, file=output_table)
+  }
   else
   {
     print(paste0("WARNING: No normalization metjod called: ", method))
