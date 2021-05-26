@@ -2,9 +2,9 @@
 normalization:
 	mkdir -p bin/NORMALIZED_DATASETS
 
-	RScript --quiet src/normalization/NormalizationScript.R TMM ALL
-	RScript --quiet src/normalization/NormalizationScript.R SUBSAMPLING ALL
-	RScript --quiet src/normalization/NormalizationScript.R CLR_COMPOSITIONS ALL
+	Rscript --quiet src/normalization/NormalizationScript.R TMM ALL
+	Rscript --quiet src/normalization/NormalizationScript.R SUBSAMPLING ALL
+	Rscript --quiet src/normalization/NormalizationScript.R CLR_COMPOSITIONS ALL
 
 make graph_norm:
 	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts/TMM.tsv
@@ -30,4 +30,3 @@ update_requirements:
 install_requirements:
 	. ./scRNAseq/bin/activate && \
 	pip3 install -r .requirements_Py.txt
-	./.install_R.sh

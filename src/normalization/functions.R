@@ -1,4 +1,4 @@
-library(stringr)
+deployrUtils::deployrPackage("stringr")
 
 get_dataset_path<-function()
 {

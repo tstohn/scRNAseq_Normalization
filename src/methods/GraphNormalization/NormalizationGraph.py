@@ -70,8 +70,12 @@ class NormalizationGraph:
 
     def __normalize_by_library_size(self, data):
         print("normamomomlizing")
-        data["ab_count_compositional"] = data.apply(lambda row : (row["ab_count"]/sum(data.loc[data["sample_id"]==row["sample_id"],"ab_count"])), axis = 1)
+        summed_data=data.groupby(['sample_id'])['ab_count'].sum().reset_index()
+        summed_data.rename(columns = {'ab_count': 'ab_count_compositional'}, inplace = True)
+        data = data.merge(summed_data)
+        data["ab_count_compositional"] = data.ab_count / data.ab_count_compositional
         return(data)
+
     def __calculate_library_size(self, data):
         data["lib_size"] = data.apply(lambda row : (sum(data.loc[data["sample_id"]==row["sample_id"],"ab_count"])), axis = 1)
         return(data)

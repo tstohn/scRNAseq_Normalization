@@ -5,16 +5,16 @@
 # 2. <name of dataset inside the dataset directory specified in settings.ini 
 #     or 'ALL' to run for all datasets>
 
-suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(deployrUtils::deployrPackage("tidyverse"))
 options(tidyverse.quiet = TRUE)
-library(dplyr, warn.conflicts = FALSE)
+deployrUtils::deployrPackage("dplyr", warn.conflicts = FALSE)
 options(dplyr.summarise.inform = FALSE)
-library(here)
-library(splitstackshape)
+deployrUtils::deployrPackage("here")
+deployrUtils::deployrPackage("splitstackshape")
 source(here("src/normalization", "functions.R"))
-library(limma)
+deployrUtils::deployrPackage("limma")
 
-library(edgeR)
+deployrUtils::deployrPackage("edgeR")
 suppressPackageStartupMessages(library(compositions))
 
 # NORNALIZATION FUNCTIONS
