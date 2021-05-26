@@ -2,7 +2,7 @@ from NormalizationGraph import NormalizationGraph
 import pandas as pd
 import sys
 import os.path
-from os import listdir
+from os import listdir, makedirs
 from os.path import isfile, join
 
 def read_data(data_file):
