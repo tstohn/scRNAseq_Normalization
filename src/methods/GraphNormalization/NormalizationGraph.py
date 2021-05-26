@@ -28,6 +28,7 @@ class NormalizationGraph:
     #data has following structure:
     #<ab_id | ab_count | batch_id | sample_id>
     def __build_graph_from_data(self, corr_method = "spearman"):
+        print("make graphwibiwb")
 
         #generate a list of sp correlations
         data_table = self.data.loc[:,['sample_id','ab_id', 'ab_count']]
@@ -58,6 +59,7 @@ class NormalizationGraph:
                 edge_list.append((row['ab_id'], row['ab_id_2'], {'weight': row['correlation']}))
 
         #conatruct graph from edge list
+        print("make grap")
         G = nx.Graph()
         G.add_edges_from(edge_list)
 
@@ -67,6 +69,7 @@ class NormalizationGraph:
         return(G)
 
     def __normalize_by_library_size(self, data):
+        print("normamomomlizing")
         data["ab_count_compositional"] = data.apply(lambda row : (row["ab_count"]/sum(data.loc[data["sample_id"]==row["sample_id"],"ab_count"])), axis = 1)
         return(data)
     def __calculate_library_size(self, data):
@@ -79,6 +82,8 @@ class NormalizationGraph:
         self.data = self.__normalize_by_library_size(data)
         self.data=data
         #Graph
+        print("intitittiting")
+
         self.G = self.__build_graph_from_data()
 
     def list_of_no_correlated_samples(self, clique_list):
@@ -106,11 +111,13 @@ class NormalizationGraph:
     #return a table with ID and norm_score column
     def get_normalized_score(self):
         #find max_clique
+        print("xx")
         clique_list = list(nx.find_cliques(self.G))
         max_clique = list()
         max = 0
-
+        print("dd")
         clique_list = self.list_of_no_correlated_samples(clique_list)
+        print("aa")
 
         for clique in clique_list:
             if(len(clique) > max):

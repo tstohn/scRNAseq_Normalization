@@ -1,9 +1,9 @@
 #creates a directory with all normalizations for evry dataset at bin/NORMALIZED_DATASETS
 normalization:
 	mkdir -p bin/NORMALIZED_DATASETS
+
 	RScript --quiet src/normalization/NormalizationScript.R TMM ALL
 	RScript --quiet src/normalization/NormalizationScript.R SUBSAMPLING ALL
-	#RScript --quiet src/normalization/NormalizationScript.R SCTRANSFORM ALL
 	RScript --quiet src/normalization/NormalizationScript.R CLR_COMPOSITIONS ALL
 
 make graph_norm:
