@@ -6,9 +6,9 @@ normalization:
 	Rscript --quiet src/normalization/NormalizationScript.R TMM ALL
 	Rscript --quiet src/normalization/NormalizationScript.R SUBSAMPLING ALL
 	Rscript --quiet src/normalization/NormalizationScript.R CLR_COMPOSITIONS ALL
-
 	Rscript --quiet src/normalization/NormalizationScript.R EXPORT_FILTERED_DATA ALL
-
+	
+	python3 src/methods/GraphNormalization/main.py ALL
 make graph_norm:
 	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts/TMM.tsv
 	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts_NoEGFRemoved/TMM.tsv
