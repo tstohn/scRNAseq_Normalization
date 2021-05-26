@@ -142,12 +142,18 @@ class NormalizationGraph:
         for sample in np.unique(self.data["sample_id"]):
             sample_data = self.data[self.data["sample_id"] == sample].copy()
             avg_scaling_factor = 0
+            zero_scalings = 0
             for feature in feature_mean:
                 mean_value = feature_mean[feature]
                 sample_value = sample_data[sample_data["ab_id"] == feature]
                 avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count"])
+                if(sample_value.iloc[0]["ab_count"] == 0 or mean_value == 0):
+                    zero_scalings+=1
+                else:
+                    avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count"])
 
-            avg_scaling_factor = avg_scaling_factor/len(feature_mean)
+            assert(len(feature_mean) != zero_scalings)
+            avg_scaling_factor = avg_scaling_factor/(len(feature_mean)-zero_scalings)
             sample_data["ab_count_normalized"] = np.log((sample_data["ab_count"]*avg_scaling_factor))
             normalized_data_frame = normalized_data_frame.append(sample_data)
         return(normalized_data_frame)
@@ -184,12 +190,17 @@ class NormalizationGraph:
             for sample in np.unique(self.data["sample_id"]):
                 sample_data = self.data[self.data["sample_id"] == sample].copy()
                 avg_scaling_factor = 0
+                zero_scalings = 0
                 for feature in feature_mean:
                     mean_value = feature_mean[feature]
                     sample_value = sample_data[sample_data["ab_id"] == feature]
-                    avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count"])
+                    if(sample_value.iloc[0]["ab_count"] == 0 or mean_value == 0):
+                        zero_scalings+=1
+                    else:
+                        avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count"])
 
-                avg_scaling_factor = avg_scaling_factor/len(feature_mean)
+                assert(len(feature_mean) != zero_scalings)
+                avg_scaling_factor = avg_scaling_factor/(len(feature_mean)-zero_scalings)
                 sample_vector = np.concatenate((sample_vector, np.log((sample_data["ab_count"]*avg_scaling_factor))))
                 normalized_data_frame = normalized_data_frame.append(sample_data)
             

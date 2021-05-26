@@ -12,9 +12,7 @@ options(dplyr.summarise.inform = FALSE)
 deployrUtils::deployrPackage("here")
 deployrUtils::deployrPackage("splitstackshape")
 source(here("src/normalization", "functions.R"))
-deployrUtils::deployrPackage("limma")
-
-deployrUtils::deployrPackage("edgeR")
+library("edgeR")
 suppressPackageStartupMessages(library(compositions))
 
 # NORNALIZATION FUNCTIONS
@@ -143,6 +141,8 @@ run_tmm<-function(data)
   
   normfactors <- edgeR::calcNormFactors(countdata,sumTrim = 0.05, logratioTrim = 0) %>% 
     enframe("sample_id", "normfactor")
+  normfactors <- normfactors %>%  
+    mutate(sample_id = as.character(sample_id))
   
   libsize <- data %>% 
     group_by(sample_id) %>% 
