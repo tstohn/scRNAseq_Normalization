@@ -84,7 +84,7 @@ class NormalizationGraph:
     def __init__(self, data):
 
         self.data = self.__normalize_by_library_size(data)
-        self.data=data
+        #self.data=data
         #Graph
         print("intitittiting")
 
