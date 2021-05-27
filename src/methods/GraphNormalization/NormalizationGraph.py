@@ -27,7 +27,7 @@ class NormalizationGraph:
 
     #data has following structure:
     #<ab_id | ab_count | batch_id | sample_id>
-    def __build_graph_from_data(self, corr_method = "spearman"):
+    def __build_graph_from_data(self, corr_method, corr_threshold):
         print("make graphwibiwb")
 
         #generate a list of sp correlations
@@ -55,7 +55,7 @@ class NormalizationGraph:
         #make a list of all edges
         edge_list = list()
         for index, row in corr_table.iterrows():
-            if(row['correlation'] > 0.7):
+            if(row['correlation'] > corr_threshold):
                 edge_list.append((row['ab_id'], row['ab_id_2'], {'weight': row['correlation']}))
 
         #conatruct graph from edge list
@@ -81,16 +81,16 @@ class NormalizationGraph:
         return(data)
     #initialize graph for normalization
     #vertexes are protein abundancies, edges their correlations
-    def __init__(self, data):
+    def __init__(self, data, corr_method = "spearman", corr_threshold=0.7):
 
         self.data = self.__normalize_by_library_size(data)
         #self.data=data
         #Graph
         print("intitittiting")
 
-        self.G = self.__build_graph_from_data()
+        self.G = self.__build_graph_from_data(corr_method, corr_threshold)
 
-    def list_of_no_correlated_samples(self, clique_list):
+    def list_of_no_correlated_samples(self, clique_list, p_val, cohend_val):
         new_clique_list = list()
         for clique in clique_list:
             cluster_data_table = self.data.loc[:,['sample_id','ab_id', 'ab_count_compositional', 'cluster_id']]
@@ -106,21 +106,21 @@ class NormalizationGraph:
                 for x,y in (combinations(treatments,2)):
                     ttest, pval = stats.ttest_ind(test_dict[x][ab], test_dict[y][ab])
                     cohen_d = cohend(test_dict[x][ab], test_dict[y][ab])
-                    if(pval<0.05 and cohen_d >= 0.5):
+                    if(pval<p_val and cohen_d >= cohend_val):
                         clique.remove(ab)
                         break
             new_clique_list.append(clique)
         return(new_clique_list)  
 
     #return a table with ID and norm_score column
-    def get_normalized_score(self):
+    def get_normalized_score(self, p_val=0.05, cohend_val=0.5, take_log=False):
         #find max_clique
         print("xx")
         clique_list = list(nx.find_cliques(self.G))
         max_clique = list()
         max = 0
         print("dd")
-        clique_list = self.list_of_no_correlated_samples(clique_list)
+        clique_list = self.list_of_no_correlated_samples(clique_list, p_val, cohend_val)
         print("aa")
 
         for clique in clique_list:
@@ -146,7 +146,6 @@ class NormalizationGraph:
             for feature in feature_mean:
                 mean_value = feature_mean[feature]
                 sample_value = sample_data[sample_data["ab_id"] == feature]
-                avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count"])
                 if(sample_value.iloc[0]["ab_count"] == 0 or mean_value == 0):
                     zero_scalings+=1
                 else:
@@ -154,13 +153,16 @@ class NormalizationGraph:
 
             assert(len(feature_mean) != zero_scalings)
             avg_scaling_factor = avg_scaling_factor/(len(feature_mean)-zero_scalings)
-            sample_data["ab_count_normalized"] = np.log((sample_data["ab_count"]*avg_scaling_factor))
+            if(take_log):
+                sample_data["ab_count_normalized"] = np.log(sample_data["ab_count"]*avg_scaling_factor)
+            else:
+                sample_data["ab_count_normalized"] = (sample_data["ab_count"]*avg_scaling_factor)
             normalized_data_frame = normalized_data_frame.append(sample_data)
         return(normalized_data_frame)
 
     #return a table with ID and norm_score column
     #normalize over all clusters ith more than 20 nodes and average over those
-    def get_normalized_score_multiClique(self):
+    def get_normalized_score_multiClique(self, take_log=False):
         #find max_clique
         clique_list = list(nx.find_cliques(self.G))
         clique_list = self.list_of_no_correlated_samples(clique_list)
@@ -201,7 +203,10 @@ class NormalizationGraph:
 
                 assert(len(feature_mean) != zero_scalings)
                 avg_scaling_factor = avg_scaling_factor/(len(feature_mean)-zero_scalings)
-                sample_vector = np.concatenate((sample_vector, np.log((sample_data["ab_count"]*avg_scaling_factor))))
+                if(take_log):
+                    sample_vector = np.concatenate(sample_vector, np.log(sample_data["ab_count"]*avg_scaling_factor))
+                else:
+                    sample_vector = np.concatenate((sample_vector, (sample_data["ab_count"]*avg_scaling_factor)))
                 normalized_data_frame = normalized_data_frame.append(sample_data)
             
             normVector_list.append(sample_vector)

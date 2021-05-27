@@ -10,8 +10,13 @@ def read_data(data_file):
     return(data)
 
 def normalize_data(dataset):
-    G = NormalizationGraph(dataset)
-    normalized_score_table = G.get_normalized_score()
+    corr_method = "spearman"
+    corr_threshold=0.7
+    G = NormalizationGraph(dataset, corr_method, corr_threshold)
+    p_val=0.05
+    cohend_val=0.5
+    take_log=False
+    normalized_score_table = G.get_normalized_score(p_val, cohend_val, take_log)
     return(normalized_score_table)
 
 def ensure_dir(file_path):
