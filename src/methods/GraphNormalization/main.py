@@ -17,7 +17,8 @@ def normalize_data(dataset):
     cohend_val=0.5
     take_log=False
     normalized_score_table = G.get_normalized_score(p_val, cohend_val, take_log)
-    return(normalized_score_table)
+    batch_eff_removed_table = G.remove_batch_effect(normalized_score_table)
+    return(batch_eff_removed_table)
 
 def ensure_dir(file_path):
     if not os.path.exists(file_path):

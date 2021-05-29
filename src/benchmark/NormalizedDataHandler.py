@@ -100,7 +100,8 @@ class NormalizedDataHandler:
         ax.set_title('Confusion Matrix')
         ax.xaxis.set_ticklabels(label_list); ax.yaxis.set_ticklabels(label_list)
         plt.savefig(self.folder_path + "ConfusionMatrices/" + data_name + method_string + "_CFMatrix.png")
-        
+        plt.close()
+
         print('%s => %s Accuracy[%s] : %.3f (%.3f)' % (self.dataset_name, method_string, data_name, np.mean(scores), np.std(scores)))
         self.results.write(data_name + "\t" + method_string + "\t" + str(round(np.mean(scores), 2)) + "\t" + str(round(np.std(scores), 2)) + "\n")
 
@@ -144,7 +145,7 @@ class NormalizedDataHandler:
             alpha=1
         )
         plt.savefig(self.folder_path + data_name + "_output.png")
-
+        plt.close()
         
     #public classification metods running on ALL normalization methods
     def knn_clasification(self):
@@ -217,6 +218,7 @@ class NormalizedDataHandler:
             lengend_labels.append(key)
         plt.legend(labels=lengend_labels)
         plt.savefig(self.folder_path +  "spearman_correlations_" + filter + ".png")
+        plt.close()
 
 
 
