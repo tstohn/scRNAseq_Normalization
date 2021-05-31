@@ -1,7 +1,0 @@
-compositions
-edgeR
-here
-limma
-splitstackshape
-stringr
-tidyverse
