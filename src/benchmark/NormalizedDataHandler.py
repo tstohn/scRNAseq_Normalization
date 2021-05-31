@@ -84,7 +84,6 @@ class NormalizedDataHandler:
         search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True, random_state=random_factor)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=random_factor)
         scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=-1)
-        print(scores)
         lock.acquire()
         for s in scores:
             global_scores.append(s)
@@ -97,12 +96,12 @@ class NormalizedDataHandler:
         threads = []
         global_scores = []
         lock = threading.Lock()
-        for t in range(10):
+        for t in range(20):
             x = threading.Thread(target=self.__calculate_scores, args=(model, params, X, y, global_scores, lock))
             threads.append(x)
             x.start()
         for x in threads:
-            x.join()  
+            x.join()
 
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=1)
         search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
@@ -125,10 +124,6 @@ class NormalizedDataHandler:
         plt.close()
 
         print('%s => %s Accuracy[%s] : %.3f (%.3f)' % (self.dataset_name, method_string, data_name, np.mean(global_scores), np.std(global_scores)))
-
-
-        exit(1)   
-
         self.results.write(data_name + "\t" + method_string + "\t" + str(round(np.mean(scores), 2)) + "\t" + str(round(np.std(scores), 2)) + "\n")
 
     #private classification metods running on SINGLE method
