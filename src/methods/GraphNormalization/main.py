@@ -11,14 +11,15 @@ def read_data(data_file):
 
 def normalize_data(dataset):
     corr_method = "spearman"
-    corr_threshold=0.7
+    corr_threshold=0.85
     G = NormalizationGraph(dataset, corr_method, corr_threshold)
     p_val=0.05
     cohend_val=0.5
     take_log=False
-    normalized_score_table = G.get_normalized_score(p_val, cohend_val, take_log)
-    batch_eff_removed_table = G.remove_batch_effect(normalized_score_table)
-    return(batch_eff_removed_table)
+    G.remove_batch_effect()
+    G.normalize_by_library_size()
+    G.get_normalized_score(p_val, cohend_val, take_log)
+    return(G.data)
 
 def ensure_dir(file_path):
     if not os.path.exists(file_path):

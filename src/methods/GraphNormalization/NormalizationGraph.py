@@ -67,12 +67,14 @@ class NormalizationGraph:
 
         return(G)
 
-    def __normalize_by_library_size(self, data):
-        summed_data=data.groupby(['sample_id'])['ab_count'].sum().reset_index()
-        summed_data.rename(columns = {'ab_count': 'ab_count_compositional'}, inplace = True)
-        data = data.merge(summed_data)
-        data["ab_count_compositional"] = data.ab_count / data.ab_count_compositional
-        return(data)
+    def normalize_by_library_size(self):
+        summed_data=self.data.groupby(['sample_id'])['ab_count_normalized'].sum().reset_index()
+        summed_data.rename(columns = {'ab_count_normalized': 'ab_count_compositional'}, inplace = True)
+        summed_data['sample_id'].astype(str)
+        self.data['sample_id'].astype(str)
+        self.data = self.data.merge(summed_data)
+        self.data["ab_count_compositional"] = self.data.ab_count / self.data.ab_count_compositional
+        return(self.data)
 
     def __calculate_library_size(self, data):
         data["lib_size"] = data.apply(lambda row : (sum(data.loc[data["sample_id"]==row["sample_id"],"ab_count"])), axis = 1)
@@ -81,8 +83,8 @@ class NormalizationGraph:
     #vertexes are protein abundancies, edges their correlations
     def __init__(self, data, corr_method = "spearman", corr_threshold=0.7):
 
-        self.data = self.__normalize_by_library_size(data)
-        #self.data=data
+        self.data=data
+        self.data["ab_count_normalized"] = self.data["ab_count"]
         #Graph
 
         self.G = self.__build_graph_from_data(corr_method, corr_threshold)
@@ -129,7 +131,7 @@ class NormalizationGraph:
         feature_mean = dict()
         for feature in max_clique:
             ab_values = self.data[self.data["ab_id"] == feature]
-            mean = statistics.mean(ab_values["ab_count"])
+            mean = statistics.mean(ab_values["ab_count_normalized"])
             feature_mean[feature] = mean
 
         normalized_data_frame = pd.DataFrame()
@@ -140,18 +142,20 @@ class NormalizationGraph:
             for feature in feature_mean:
                 mean_value = feature_mean[feature]
                 sample_value = sample_data[sample_data["ab_id"] == feature]
-                if(sample_value.iloc[0]["ab_count"] == 0 or mean_value == 0):
+                if(sample_value.iloc[0]["ab_count_normalized"] == 0 or mean_value == 0):
                     zero_scalings+=1
                 else:
-                    avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count"])
+                    avg_scaling_factor += (mean_value/ sample_value.iloc[0]["ab_count_normalized"])
 
             assert(len(feature_mean) != zero_scalings)
             avg_scaling_factor = avg_scaling_factor/(len(feature_mean)-zero_scalings)
             if(take_log):
-                sample_data["ab_count_normalized"] = np.log(sample_data["ab_count"]*avg_scaling_factor)
+                sample_data["ab_count_normalized"] = np.log(sample_data["ab_count_normalized"]*avg_scaling_factor)
             else:
-                sample_data["ab_count_normalized"] = (sample_data["ab_count"]*avg_scaling_factor)
+                sample_data["ab_count_normalized"] = (sample_data["ab_count_normalized"]*avg_scaling_factor)
             normalized_data_frame = normalized_data_frame.append(sample_data)
+
+        self.data = normalized_data_frame
         return(normalized_data_frame)
 
     #return a table with ID and norm_score column
@@ -215,16 +219,16 @@ class NormalizationGraph:
         normalized_data_frame["ab_count_normalized"] = norm_matrix_t/sum(weight_list)
         return(normalized_data_frame)
 
-    def remove_batch_effect(self, norm_data):
+    def remove_batch_effect(self):
 
         #pivot data (samples*ABs)
-        combat_data = norm_data[["sample_id", "ab_id", "batch_id", "ab_count"]]
-        combat_data = combat_data.pivot(index=["sample_id","batch_id"], columns="ab_id", values="ab_count")
+        combat_data = self.data[["sample_id", "ab_id", "batch_id", "ab_count_normalized"]]
+        combat_data = combat_data.pivot(index=["sample_id","batch_id"], columns="ab_id", values="ab_count_normalized")
 
         #generate an AnnData matrix (index is batch and sample id, 
         #batch is then taken as column for observation matrix as well)
         index_array = [np.array(combat_data.index.get_level_values(0)),
-                    np.array(combat_data.index.get_level_values(1))]
+                       np.array(combat_data.index.get_level_values(1))]
         var_df = pd.DataFrame(index=combat_data.columns.values)
         obs_df = pd.DataFrame(index=pd.MultiIndex.from_arrays(index_array))
         obs_df["batch_id"] = combat_data.index.get_level_values(1)
@@ -239,6 +243,8 @@ class NormalizationGraph:
         reindexed_matrix = reverted_ann_matrix.reset_index()
         unpivoted_matrix = reindexed_matrix.melt(id_vars=["level_0", "level_1"], var_name="ab_id")
         normalized_matrix = unpivoted_matrix.rename(columns = {'level_0':'sample_id', 'level_1':'batch_id', 'value':'ab_count_normalized'})
-        result = norm_data.drop(columns=["ab_count_normalized"])
-        result = result.merge(normalized_matrix)
+        self.data.drop('ab_count_normalized', inplace = True, axis=1)
+        result = self.data.merge(normalized_matrix)
+
+        self.data = result
         return(result)
