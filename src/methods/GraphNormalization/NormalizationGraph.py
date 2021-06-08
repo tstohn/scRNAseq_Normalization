@@ -73,7 +73,7 @@ class NormalizationGraph:
         summed_data['sample_id'].astype(str)
         self.data['sample_id'].astype(str)
         self.data = self.data.merge(summed_data)
-        self.data["ab_count_compositional"] = self.data.ab_count / self.data.ab_count_compositional
+        self.data["ab_count_compositional"] = self.data.ab_count_normalized / self.data.ab_count_compositional
         return(self.data)
 
     def __calculate_library_size(self, data):
@@ -95,6 +95,7 @@ class NormalizationGraph:
             cluster_data_table = self.data.loc[:,['sample_id','ab_id', 'ab_count_compositional', 'cluster_id']]
             treatments = cluster_data_table["cluster_id"].unique()
             treatment_dict = dict()
+
             abs = clique.copy()
             test_dict = dict()
             for t in treatments:
@@ -103,6 +104,8 @@ class NormalizationGraph:
                 test_dict[t] = treatment_table
             for ab in abs:
                 for x,y in (combinations(treatments,2)):
+                    print(treatments)
+                    print(str(x) + "_" + str(y) + ":" + str(abs))
                     ttest, pval = stats.ttest_ind(test_dict[x][ab], test_dict[y][ab])
                     cohen_d = cohend(test_dict[x][ab], test_dict[y][ab])
                     if(pval<p_val and cohen_d >= cohend_val):
