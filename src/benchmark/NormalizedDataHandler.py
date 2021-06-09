@@ -96,7 +96,7 @@ class NormalizedDataHandler:
         threads = []
         global_scores = []
         lock = threading.Lock()
-        for t in range(20):
+        for t in range(1):
             x = threading.Thread(target=self.__calculate_scores, args=(model, params, X, y, global_scores, lock))
             threads.append(x)
             x.start()
@@ -225,9 +225,20 @@ class NormalizedDataHandler:
 
             data_subset = data.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
             d_pivot=data_subset.pivot(index = "ab_id", columns='sample_id', values='ab_count_normalized')
-            sp, p = stats.spearmanr(d_pivot, axis = 1)
-            dim=len(sp[0])
             
+            try:
+                sp, p = stats.spearmanr(d_pivot, axis = 1)
+                dim=len(sp[0])
+            except:
+                drop_list = []
+                for i in range(len(d_pivot.index)):
+                    row = d_pivot.iloc[i].values.tolist()
+                    if(all(elem == row[0] for elem in row)):
+                        drop_list.append(i)
+                d_pivot = d_pivot.drop(d_pivot.index[drop_list], axis = 0)
+                sp, p = stats.spearmanr(d_pivot, axis = 1)
+                dim=len(sp[0])        
+
             sp_values=list(sp[np.triu_indices(dim,1)])
             p_values=list(p[np.triu_indices(dim,1)])
 
@@ -237,6 +248,7 @@ class NormalizedDataHandler:
             self.sp_results.write(key + "\t"+ str(round(sp_mean,4)) + "\t" + str(round(p_mean,4)) + "\n")
             sns.distplot(x=sp_values, hist=False, kde=True)
             lengend_labels.append(key)
+   
         plt.legend(labels=lengend_labels)
         plt.savefig(self.folder_path +  "spearman_correlations_" + filter + ".png")
         plt.close()
