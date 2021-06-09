@@ -9,6 +9,7 @@ def make_benchmark(dataset):
     benchmark.knn_clasification()
     benchmark.draw_tsne()
     benchmark.ab_spearman_correlation()
+    benchmark.calculate_wanted_and_unwanted_variance()
 
     #dataset scpecific analyses
     if(benchmark.dataset_name.startswith("scIDseq-vanEijl")):

@@ -17,6 +17,8 @@ import seaborn as sns
 
 import threading
 
+from alibi_detect.cd import MMDDrift #MMD
+
 #class handling the normalized data (classifies, tsne visualisation)
 class NormalizedDataHandler:
 
@@ -67,6 +69,8 @@ class NormalizedDataHandler:
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
         if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/ConfusionMatrices"):
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/ConfusionMatrices")
+        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/MMDMatrices"):
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/MMDMatrices")
         self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results.tsv", "w+")
         self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
 
@@ -145,6 +149,45 @@ class NormalizedDataHandler:
               "min_samples_leaf": range(1, 30),
               "criterion": ["gini", "entropy"]}
         self.__classify(data_name, model, params, method_string)
+
+    def calculate_wanted_and_unwanted_variance(self):
+        #significance test for between treatment difference 
+        for key in self.data:
+            data = self.data[key]
+            #MMD difference between treatments
+            #for every two subsets in cluster_id column calculate their MMDDrift
+            cluster_ids = data.cluster_id.unique()
+            heat_map = pd.DataFrame(0, columns = cluster_ids, index = cluster_ids)
+            for cluster_idx_1 in range(len(cluster_ids)-1):
+                data_1 = data[data["cluster_id"]==cluster_ids[cluster_idx_1]]
+                mmd_data_prefiltered = data_1.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
+                mmd_data_pivotted = mmd_data_prefiltered.pivot(index = "sample_id", columns='ab_id', values='ab_count_normalized')
+                mmd_data_1 = mmd_data_pivotted.values
+                for cluster_idx_2 in range(cluster_idx_1+1, len(cluster_ids)):
+                    data_2 = data[data["cluster_id"]==cluster_ids[cluster_idx_1]]
+                    mmd_data_prefiltered = data_2.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
+                    mmd_data_pivotted = mmd_data_prefiltered.pivot(index = "sample_id", columns='ab_id', values='ab_count_normalized')
+                    mmd_data_2 = mmd_data_pivotted.values
+
+                    cd = MMDDrift(mmd_data_1, backend='tensorflow', p_val=.05)
+                    mmd = cd.predict(mmd_data_2, return_p_val=True, return_distance=True)
+
+                    heat_map.loc[cluster_ids[cluster_idx_1], cluster_ids[cluster_idx_2]] = mmd["data"]['distance']
+            #visualize as heatmap
+            print(heat_map)
+
+            plt.figure(figsize=(10,7))
+            sns.set(font_scale=1.4) # for label size
+            ax= plt.subplot()
+            sns.heatmap(heat_map, annot=True, annot_kws={"size": 16}) # font size
+            # labels, title and ticks
+            ax.set_xlabel('clusters')
+            ax.set_ylabel('clusters')
+            ax.set_title('MMD Matrix')
+            #ax.xaxis.set_ticklabels(label_list)
+            #ax.yaxis.set_ticklabels(label_list)
+            plt.savefig(self.folder_path + "MMDMatrices/" + key + ".png")
+            plt.close()
 
     def __draw_tsne(self, data_name):
         X=self.class_data.get(data_name, {}).get('X')
