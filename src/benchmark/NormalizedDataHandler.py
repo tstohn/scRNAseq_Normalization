@@ -154,32 +154,32 @@ class NormalizedDataHandler:
         #significance test for between treatment difference 
         for key in self.data:
             data = self.data[key]
+
             #MMD difference between treatments
             #for every two subsets in cluster_id column calculate their MMDDrift
             cluster_ids = data.cluster_id.unique()
             heat_map = pd.DataFrame(0, columns = cluster_ids, index = cluster_ids)
+            signi_map = pd.DataFrame(0, columns = cluster_ids, index = cluster_ids)
             for cluster_idx_1 in range(len(cluster_ids)-1):
                 data_1 = data[data["cluster_id"]==cluster_ids[cluster_idx_1]]
                 mmd_data_prefiltered = data_1.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
                 mmd_data_pivotted = mmd_data_prefiltered.pivot(index = "sample_id", columns='ab_id', values='ab_count_normalized')
                 mmd_data_1 = mmd_data_pivotted.values
+                cd = MMDDrift(mmd_data_1, backend='tensorflow', p_val=.05)
                 for cluster_idx_2 in range(cluster_idx_1+1, len(cluster_ids)):
-                    data_2 = data[data["cluster_id"]==cluster_ids[cluster_idx_1]]
-                    mmd_data_prefiltered = data_2.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
-                    mmd_data_pivotted = mmd_data_prefiltered.pivot(index = "sample_id", columns='ab_id', values='ab_count_normalized')
-                    mmd_data_2 = mmd_data_pivotted.values
+                    data_2 = data[data["cluster_id"]==cluster_ids[cluster_idx_2]]
+                    mmd_data_prefiltered_2 = data_2.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
+                    mmd_data_pivotted_2 = mmd_data_prefiltered_2.pivot(index = "sample_id", columns='ab_id', values='ab_count_normalized')
+                    mmd_data_2 = mmd_data_pivotted_2.values
 
-                    cd = MMDDrift(mmd_data_1, backend='tensorflow', p_val=.05)
                     mmd = cd.predict(mmd_data_2, return_p_val=True, return_distance=True)
-
                     heat_map.loc[cluster_ids[cluster_idx_1], cluster_ids[cluster_idx_2]] = mmd["data"]['distance']
+                    signi_map.loc[cluster_ids[cluster_idx_1], cluster_ids[cluster_idx_2]]  =mmd["data"]['is_drift']
             #visualize as heatmap
-            print(heat_map)
-
             plt.figure(figsize=(10,7))
             sns.set(font_scale=1.4) # for label size
             ax= plt.subplot()
-            sns.heatmap(heat_map, annot=True, annot_kws={"size": 16}) # font size
+            sns.heatmap(heat_map, mask = signi_map == 0, cbar=False, annot=True, annot_kws={"size": 18, "weight": "bold"})
             # labels, title and ticks
             ax.set_xlabel('clusters')
             ax.set_ylabel('clusters')
