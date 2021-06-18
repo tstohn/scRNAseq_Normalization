@@ -1,10 +1,10 @@
-from NormalizationGraph import NormalizationGraph
 import pandas as pd
 import sys
 import os.path
 import re
 from os import listdir, makedirs
 from os.path import isfile, join
+from CellClustering import CellClustering
 
 def read_data(data_file):
     data = pd.read_csv(data_file, sep='\t')
@@ -17,6 +17,9 @@ def ensure_dir(file_path):
 def run_clusterAnalysis_on_dataset(data_dir, correlation, output_dir = ""):    
     data = read_data(data_dir)
     result =None
+
+    cluster = CellClustering(data)
+    cluster.meld_algorithm()
 
     if(output_dir):
         ensure_dir(output_dir)
