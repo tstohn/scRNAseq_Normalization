@@ -14,25 +14,31 @@ def ensure_dir(file_path):
     if not os.path.exists(file_path):
         makedirs(file_path)
 
-def run_clusterAnalysis_on_dataset(data_dir, correlation, output_dir = ""):    
+def run_clusterAnalysis_on_dataset(data_dir, output_dir):    
     data = read_data(data_dir)
     result =None
 
     cluster = CellClustering(data)
-    cluster.meld_algorithm()
+    
+    #RUN MELD ALGORITHM
+    #result = cluster.meld_algorithm()
+    #ensure_dir(output_dir)
+    #result.to_csv(output_dir + "/SampleAssociatedRelativeLikelihoods.tsv", sep='\t')
 
-    if(output_dir):
-        ensure_dir(output_dir)
-        result.to_csv(output_dir + "/GraphNormalized.tsv", sep='\t')
-    else:
-        result.to_csv(os.path.dirname(data_dir) + "/GraphNormalized.tsv", sep='\t')
+    #run mean shift
+    result = cluster.mean_shift()
+
 
 def main():
-    if(len(sys.argv) != 3):
+    if(len(sys.argv) != 3 and len(sys.argv) != 2):
         print("ERROR: use script with <python3 CellStateDeassembler.py [directory of datasets] [output directory]>\n")
         exit(1)
     data_dir = sys.argv[1]
-    output_dir = sys.argv[2]
+
+    if(len(sys.argv) == 3):
+        output_dir = sys.argv[2]
+    else:
+        output_dir = "bin/NORMALIZED_DATASETS/" + os.path.basename(os.path.splitext(dataset)[0])
 
     dataset_dir = "./bin/FILTERED_DATASETS"
     if(data_dir == "ALL"):
@@ -45,11 +51,10 @@ def main():
 
         #for every dataset in this list
         for dataset in dataset_list:
-            output_dir = "bin/NORMALIZED_DATASETS/" + os.path.basename(os.path.splitext(dataset)[0])
             print("Running Graph normalization on: " + dataset)
             run_clusterAnalysis_on_dataset(dataset, output_dir)
     else:
-        run_clusterAnalysis_on_dataset(data_dir)
+        run_clusterAnalysis_on_dataset(data_dir, output_dir)
 
 if __name__ == '__main__':
     main()
