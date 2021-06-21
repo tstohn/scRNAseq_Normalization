@@ -1,3 +1,4 @@
+from numba.cuda.api import per_thread_default_stream
 import numpy as np
 import pandas as pd
 import meld
@@ -67,32 +68,90 @@ class CellClustering:
 
         return result
 
+    def z_score(self, df):
+        # copy the dataframe
+        df_std = df.copy()
+        # apply the z-score method
+        for column in df_std.columns:
+            df_std[column] = (df_std[column] - df_std[column].mean()) / df_std[column].std()
+            
+        return df_std
+
+    def umap_function(self, data):
+        standard_embedding = umap.UMAP(random_state=42).fit_transform(data)
+        kmeans_labels = cluster.KMeans(n_clusters=10).fit_predict(standard_embedding)
+        return kmeans_labels
+
+    def mean_shift_function(self, data):
+        bandwidth = cluster.estimate_bandwidth(data, quantile=0.5)
+        bandwidth = 0.03
+        clustering = cluster.MeanShift(bandwidth=bandwidth).fit(data)
+        all_labels = clustering.labels_
+        return all_labels
+
+    def get_kmean_labels_for_all(self, data, label_func):
+        all_labels = None
+
+        data = data.filter(items=['sample_id', 'ab_count_normalized', 'cluster_id', 'ab_id'])
+        data = data.pivot(index = 'sample_id', columns = 'ab_id', values = 'ab_count_normalized')
+        data = data.sort_values(by = ['sample_id'])
+        data = self.z_score(data)
+
+        all_labels = label_func(data.values)
+        data["all_labels"] = all_labels
+        sample_to_label_mapping = data.filter(items=['sample_id', 'all_labels'])
+        
+        return sample_to_label_mapping
+
+    def write_data_frame(self, data, labels):
+        data = data.reset_index()
+        data = pd.melt(data, id_vars=['sample_id'])
+        out_data = pd.merge(data, labels, on=["sample_id"])
+        out_data.to_csv("/Users/t.stohn/Desktop/TMP/OUTDATA.tsv")
+
     #for now: calcualte mean shift clusters of different treatments
     #OUTLOOK: map clusters of different treatments
     def mean_shift(self):
         cluster_ids = self.data.cluster_id.unique()
-        cluster_ids = np.append(cluster_ids, "ALL")
+        #cluster_ids = np.append(cluster_ids, "ALL")
 
+        cluster_ids = np.insert(cluster_ids, 0, "ALL")
+        mean_shift_data = self.data.filter(items=['sample_id', 'ab_count_normalized', 'cluster_id', 'ab_id'])
+
+        #call function to generte labels for kmean over all samples
+        labels = self.get_kmean_labels_for_all(mean_shift_data, self.mean_shift_function)
+        mean_shift_data = pd.merge(mean_shift_data, labels, on=["sample_id"])
+        
         for single_cluster in cluster_ids:
-            pre_data = self.data.filter(items=['sample_id', 'ab_count_normalized', 'cluster_id', 'ab_id'])
 
             if(not single_cluster=="ALL"):
-                pre_data = pre_data.loc[pre_data["cluster_id"] == single_cluster]
+                pre_data = mean_shift_data.loc[mean_shift_data["cluster_id"] == single_cluster]
+            else:
+                pre_data = mean_shift_data
 
-            pre_data = pre_data.pivot(index = 'sample_id', columns = 'ab_id', values = 'ab_count_normalized')
+            pre_data = pre_data.pivot(index = ['sample_id', 'all_labels'] , columns = 'ab_id', values = 'ab_count_normalized')
+            pre_data = pre_data.reset_index("all_labels")
+            
+            all_labels = pre_data["all_labels"]
+            pre_data = pre_data.drop(columns = 'all_labels')
+            #pre_data = self.z_score(pre_data)
+
+            if(single_cluster=="ALL"):
+                self.write_data_frame(pre_data, labels)
+
             data = pre_data.sort_values(by = ['sample_id']).values
 
+            #cluster subset on MEAN SHIFT
             bandwidth = cluster.estimate_bandwidth(data, quantile=0.5, n_samples=544)
             bandwidth = 0.03
             clustering = cluster.MeanShift(bandwidth=bandwidth).fit(data)
-            print((clustering.labels_))
 
+            #cluster subset on KMEANS
             standard_embedding = umap.UMAP(random_state=42).fit_transform(data)
-
             kmeans_labels = cluster.KMeans(n_clusters=10).fit_predict(standard_embedding)
 
             plt.figure(figsize=(16,10))
-            plt.scatter(standard_embedding[:, 0], standard_embedding[:, 1], c=kmeans_labels, s=10, cmap='Spectral');
+            plt.scatter(standard_embedding[:, 0], standard_embedding[:, 1], c=all_labels, s=10, cmap='Spectral');
             plt.savefig("/Users/t.stohn/Desktop/TMP/UMAP" + single_cluster + ".png")
             plt.close()
 
