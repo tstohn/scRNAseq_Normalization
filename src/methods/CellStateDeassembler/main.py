@@ -26,7 +26,9 @@ def run_clusterAnalysis_on_dataset(data_dir, output_dir):
     #result.to_csv(output_dir + "/SampleAssociatedRelativeLikelihoods.tsv", sep='\t')
 
     #run mean shift
-    result = cluster.mean_shift()
+    result = cluster.cluster_pca_embedding()
+
+    #cluster.cluster_KDE_diff()
 
 
 def main():
