@@ -11,10 +11,9 @@ def main():
 
     param = Parameters(parameter_file)
     sim = SingleCellSimulation(param)
-    print(param.proteinCountMatrix)
     sim.simulateData()
-    print(sim.simulatedData)
     sim.save_data(groundTruth=True)
+    sim.save_data()
 
 if __name__ == '__main__':
     main()

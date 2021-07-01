@@ -1,3 +1,4 @@
+from dataclasses import replace
 from scipy.stats import nbinom
 import re
 import numpy as np
@@ -44,10 +45,10 @@ class Parameters():
     ProteinLevel = namedtuple('ProteinLevel', ['start', 'end', 'number'])
 
     """ MODELLED PARAMETERS """
-    proteinCountMatrix = None
+    groundTruthData = None
     """ SIMULATION Parameters """
     abBindingEfficiency = None
-    seqEfficiency = None
+    seqAmplificationEfficiency = None
     #list of namedtuples ProteinLevel
     ProteinLevels = None
     size = None
@@ -86,12 +87,13 @@ class Parameters():
             elif(str.startswith(line, "abBindingEfficiency")):
                 info = re.match(("abBindingEfficiency=(.*)"), line)
                 self.abBindingEfficiency = float(info[1].rstrip("\n"))
-            elif(str.startswith(line, "seqEfficiency")):
-                info = re.match(("seqEfficiency=(.*)"), line)
-                self.seqEfficiency = float(info[1].rstrip("\n"))
+            elif(str.startswith(line, "seqAmplificationEfficiency")):
+                info = re.match(("seqAmplificationEfficiency=(.*)"), line)
+                self.seqAmplificationEfficiency = float(info[1].rstrip("\n"))
 
     def __simulateProteinCountMatrix(self, abDuplicates = 1):
         proteinCount = 1
+        proteinCountMatrix = None
         for proteinRange in self.ProteinLevels:
             for i in range(proteinRange.number):
                 #for every protein simulate a neg.binom distibuted number for every cell
@@ -103,13 +105,17 @@ class Parameters():
                 proteinCountVector = dist.distributionValues()
                 abName = "AB" + str(proteinCount)
                 #add it to a matrix as a new column
-                if(self.proteinCountMatrix is None):
-                    self.proteinCountMatrix = pd.DataFrame({abName : proteinCountVector}) 
-                    self.proteinCountMatrix.index = ["sample_" + str(j+1) for j in range(self.CellNumber)]
+                if(proteinCountMatrix is None):
+                    proteinCountMatrix = pd.DataFrame({abName : proteinCountVector}) 
+                    proteinCountMatrix.index = ["sample_" + str(j+1) for j in range(self.CellNumber)]
                 else:
-                    self.proteinCountMatrix[abName] = proteinCountVector
+                    proteinCountMatrix[abName] = proteinCountVector
 
                 proteinCount +=1
+        
+        proteinCountMatrix = proteinCountMatrix.reset_index().rename(columns={ 'index' : 'sample_id'})
+        proteinCountMatrix = proteinCountMatrix.melt(id_vars = ["sample_id"], var_name="ab_id", value_name="ab_count")
+        self.groundTruthData = proteinCountMatrix
 
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
@@ -126,31 +132,32 @@ class SingleCellSimulation():
         self.parameters = parameters
 
     def __simulate_ab_binding(self, data):
-        tmp_simulatedData = self.parameters.abBindingEfficiency * data
+        number = int(self.parameters.abBindingEfficiency * len(data.index))
+        tmp_simulatedData = data.sample(n=number, replace=False, random_state=1, weights = 'ab_count')
         return(tmp_simulatedData)
 
     def __simulate_sequencing_binding(self, data):
-        tmp_simulatedData = self.parameters.seqEfficiency * data
+        number = int(self.parameters.seqAmplificationEfficiency * len(data.index))
+        tmp_simulatedData = data.sample(n=number, replace = True, random_state=1, weights = 'ab_count')
         return(tmp_simulatedData)
 
     def simulateData(self):
         #simulate AB binding efficiency
         #discard a fraction of proteinCounts as no AB has bound them
-        tmp_simulatedData = self.__simulate_ab_binding(self.parameters.proteinCountMatrix)
+        tmp_simulatedData = self.__simulate_ab_binding(self.parameters.groundTruthData)
 
         #simulate PCR amplification and sequencing
         #sampling with replacement to simulate PCR amplification as well as missing out on reads during washing/ sequencing
         tmp_simulatedData = self.__simulate_sequencing_binding(tmp_simulatedData)
 
-        self.simulatedData = tmp_simulatedData.astype(int)
+        self.simulatedData = tmp_simulatedData
+
         return(self.simulatedData)
 
     def save_data(self, groundTruth = False):
-        #transform data into the same form as Mulder datasets
-
         #safe data
         if(groundTruth):
-            self.parameters.proteinCountMatrix.to_csv(self.output_dir + "/GroundTruthData.tsv", sep='\t')
+            self.parameters.groundTruthData.to_csv(self.output_dir + "/GroundTruthData.tsv", sep='\t')
         else:
             self.simulatedData.to_csv(self.output_dir + "/SimulatedData.tsv", sep='\t')
 
