@@ -126,6 +126,7 @@ class SingleCellSimulation():
     parameters = None
     #sample * AB matrix of simulated data
     simulatedData = None
+    ab_sampled = None
     output_dir = "bin/SIMULATIONS/"
 
     def __init__(self, parameters):
@@ -136,33 +137,23 @@ class SingleCellSimulation():
         tmp_simulatedData = data.sample(n=number, replace=False, random_state=1, weights = 'ab_count')
         return(tmp_simulatedData)
 
-    def __generateUmiData(self, row, count):
-        numberUmis = row["ab_count"]
-        tmpUmiData = pd.DataFrame(columns = ["sample_id", "ab_id", "ab_count", "UMI_id"])
-        
-        tmpUmiData_1 = row.loc[row.index.repeat(row.ab_count)]
-        print(tmpUmiData_1)
-        print(count[0])
-        count[0] += 1
-        print(numberUmis)
-        for i in range(numberUmis):
-            #UMI ID is sample_id + ab_id + <number for UMI>
-            umi = str(row["sample_id"]) + "_" + str(row["ab_id"]) + "_" + str(i)
-            new_row = {"sample_id" : row["sample_id"], "ab_id" : row["ab_id"], "ab_count" : row["ab_count"], "UMI_id" : umi}
-            #append row for UMI to dataFrame
-            tmpUmiData = tmpUmiData.append(new_row, ignore_index=True)
-        print(tmpUmiData)
+    def __generateUmiData(self, data):
+        umiData = data.loc[data.index.repeat(data.ab_count)]
+        umiData["umi_id"] = range(len(umiData.index))
+        return(umiData)
 
     def __simulate_sequencing_binding(self, data):
         #simulate UMIs
         #for every line simulate UMIs according to ab_count column
-        umiData = pd.DataFrame()
-        count = [1]
-        umis = data.apply(self.__generateUmiData, axis = 1, args = [count])
-        umiData = pd.concat(umis, axis=1)
+        umiData = self.__generateUmiData(data)
 
         number = int(self.parameters.seqAmplificationEfficiency * len(umiData.index))
-        tmp_simulatedData = data.sample(n=number, replace = True, random_state=1, weights = 'ab_count')
+        tmp_simulatedData = umiData.sample(n=number, replace = True, random_state=1)
+        
+        tmp_simulatedData["ab_count"] = tmp_simulatedData.groupby(['sample_id','ab_id'])['umi_id'].transform('size')
+        tmp_simulatedData = tmp_simulatedData.drop(columns=["umi_id"])
+        tmp_simulatedData = tmp_simulatedData.drop_duplicates()
+
         return(tmp_simulatedData)
 
     def simulateData(self):
@@ -170,10 +161,11 @@ class SingleCellSimulation():
         #discard a fraction of proteinCounts as no AB has bound them
         tmp_simulatedData = self.__simulate_ab_binding(self.parameters.groundTruthData)
 
+        self.ab_sampled = tmp_simulatedData
+
         #simulate PCR amplification and sequencing
         #sampling with replacement to simulate PCR amplification as well as missing out on reads during washing/ sequencing
         tmp_simulatedData = self.__simulate_sequencing_binding(tmp_simulatedData)
-
         self.simulatedData = tmp_simulatedData
 
         return(self.simulatedData)
@@ -184,4 +176,6 @@ class SingleCellSimulation():
             self.parameters.groundTruthData.to_csv(self.output_dir + "/GroundTruthData.tsv", sep='\t')
         else:
             self.simulatedData.to_csv(self.output_dir + "/SimulatedData.tsv", sep='\t')
+            self.ab_sampled.to_csv(self.output_dir + "/AbData.tsv", sep='\t')
+
 

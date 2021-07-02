@@ -5,7 +5,11 @@ from numpy.linalg import norm
 import matplotlib.pyplot as plt
 from scipy import stats
 
-# get difference of distributions for all ABs (count as well as relative)
+# get difference of distributions for all ABs (possible metrices: ab count and relative count)
+""" return a dictionary with the average distance between all distributions of all possible tags for an ab_id:
+    { <ab_id>: <average distance>} 
+"""
+def calculate_distribution_difference():
 
 
 # rate how much a sample is an outlier to correlation

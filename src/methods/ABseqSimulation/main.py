@@ -12,8 +12,8 @@ def main():
     param = Parameters(parameter_file)
     sim = SingleCellSimulation(param)
     sim.simulateData()
-    #sim.save_data(groundTruth=True)
-    #sim.save_data()
+    sim.save_data(groundTruth=True)
+    sim.save_data()
 
 if __name__ == '__main__':
     main()
