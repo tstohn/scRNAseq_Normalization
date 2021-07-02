@@ -136,8 +136,32 @@ class SingleCellSimulation():
         tmp_simulatedData = data.sample(n=number, replace=False, random_state=1, weights = 'ab_count')
         return(tmp_simulatedData)
 
+    def __generateUmiData(self, row, count):
+        numberUmis = row["ab_count"]
+        tmpUmiData = pd.DataFrame(columns = ["sample_id", "ab_id", "ab_count", "UMI_id"])
+        
+        tmpUmiData_1 = row.loc[row.index.repeat(row.ab_count)]
+        print(tmpUmiData_1)
+        print(count[0])
+        count[0] += 1
+        print(numberUmis)
+        for i in range(numberUmis):
+            #UMI ID is sample_id + ab_id + <number for UMI>
+            umi = str(row["sample_id"]) + "_" + str(row["ab_id"]) + "_" + str(i)
+            new_row = {"sample_id" : row["sample_id"], "ab_id" : row["ab_id"], "ab_count" : row["ab_count"], "UMI_id" : umi}
+            #append row for UMI to dataFrame
+            tmpUmiData = tmpUmiData.append(new_row, ignore_index=True)
+        print(tmpUmiData)
+
     def __simulate_sequencing_binding(self, data):
-        number = int(self.parameters.seqAmplificationEfficiency * len(data.index))
+        #simulate UMIs
+        #for every line simulate UMIs according to ab_count column
+        umiData = pd.DataFrame()
+        count = [1]
+        umis = data.apply(self.__generateUmiData, axis = 1, args = [count])
+        umiData = pd.concat(umis, axis=1)
+
+        number = int(self.parameters.seqAmplificationEfficiency * len(umiData.index))
         tmp_simulatedData = data.sample(n=number, replace = True, random_state=1, weights = 'ab_count')
         return(tmp_simulatedData)
 
