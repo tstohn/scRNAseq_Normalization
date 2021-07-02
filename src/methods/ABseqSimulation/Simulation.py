@@ -145,14 +145,21 @@ class SingleCellSimulation():
     def __simulate_sequencing_binding(self, data):
         #simulate UMIs
         #for every line simulate UMIs according to ab_count column
+        print(data[data["sample_id"] == "sample_1"])
         umiData = self.__generateUmiData(data)
 
+        #sample from all UMIs and remove umis that occur several times
         number = int(self.parameters.seqAmplificationEfficiency * len(umiData.index))
         tmp_simulatedData = umiData.sample(n=number, replace = True, random_state=1)
-        
-        tmp_simulatedData["ab_count"] = tmp_simulatedData.groupby(['sample_id','ab_id'])['umi_id'].transform('size')
-        tmp_simulatedData = tmp_simulatedData.drop(columns=["umi_id"])
+        print(tmp_simulatedData[tmp_simulatedData["sample_id"] == "sample_1"])
         tmp_simulatedData = tmp_simulatedData.drop_duplicates()
+        print(tmp_simulatedData[tmp_simulatedData["sample_id"] == "sample_1"])
+
+        #accumulate again ab_ids for all samples
+        tmp_simulatedData = tmp_simulatedData.drop(columns=["umi_id"])
+        tmp_simulatedData["ab_count"] = tmp_simulatedData.groupby(['sample_id', 'ab_id'])['sample_id'].transform('size')
+        tmp_simulatedData = tmp_simulatedData.drop_duplicates()
+        print(tmp_simulatedData[tmp_simulatedData["sample_id"] == "sample_1"])
 
         return(tmp_simulatedData)
 
