@@ -1,14 +1,17 @@
 #creates a directory with all normalizations for evry dataset at bin/NORMALIZED_DATASETS
 normalization:
+	$(eval DATA := $(if $(DATA),$(DATA),"ALL"))
+
 	mkdir -p bin/NORMALIZED_DATASETS
 	mkdir -p bin/FILTERED_DATASETS
 
-	Rscript --quiet src/normalization/NormalizationScript.R TMM ALL
-	Rscript --quiet src/normalization/NormalizationScript.R SUBSAMPLING ALL
-	Rscript --quiet src/normalization/NormalizationScript.R CLR_COMPOSITIONS ALL
-	Rscript --quiet src/normalization/NormalizationScript.R EXPORT_FILTERED_DATA ALL
-	
-	python3 src/methods/GraphNormalization/main.py ALL
+	Rscript --quiet src/normalization/NormalizationScript.R TMM $(DATA)
+	Rscript --quiet src/normalization/NormalizationScript.R SUBSAMPLING $(DATA)
+	Rscript --quiet src/normalization/NormalizationScript.R CLR_COMPOSITIONS $(DATA)
+	Rscript --quiet src/normalization/NormalizationScript.R EXPORT_FILTERED_DATA $(DATA)
+	python3 src/methods/GraphNormalization/main.py $(DATA)
+
+
 make graph_norm:
 	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts/TMM.tsv
 	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts_NoEGFRemoved/TMM.tsv

@@ -35,7 +35,7 @@ class ProteinCountDistribution():
     def distributionValues(self):
         return(self.abCountVector)
 
-
+#generates a ground truth matrix for protein counts
 class Parameters():
 
     #incubation time is considered constant for now
@@ -44,8 +44,6 @@ class Parameters():
     #technical variation matrix
     ProteinLevel = namedtuple('ProteinLevel', ['start', 'end', 'number'])
 
-    """ MODELLED PARAMETERS """
-    groundTruthData = None
     """ SIMULATION Parameters """
     abBindingEfficiency = None
     seqAmplificationEfficiency = None
@@ -54,6 +52,12 @@ class Parameters():
     size = None
     CellNumber = None
     abDuplicates = 1
+    pcrCycles=1
+    pcrCapture=1
+    treatments=0
+    treatmentVector = None
+    batches=1
+    batchFactors=None
 
     """ PARAMETERS
         rangeVector: a vector of quadruples(range, number, mean, std) for Abs of different distributions
@@ -90,24 +94,82 @@ class Parameters():
             elif(str.startswith(line, "seqAmplificationEfficiency")):
                 info = re.match(("seqAmplificationEfficiency=(.*)"), line)
                 self.seqAmplificationEfficiency = float(info[1].rstrip("\n"))
+            elif(str.startswith(line, "pcrCycles")):
+                info = re.match(("pcrCycles=(.*)"), line)
+                self.pcrCycles = float(info[1].rstrip("\n"))
+            elif(str.startswith(line, "pcrCapture")):
+                info = re.match(("pcrCapture=(.*)"), line)
+                self.pcrCapture = float(info[1].rstrip("\n"))  
+            elif(str.startswith(line, "treatments")):
+                info = re.match(("treatments=(.*)"), line)
+                self.treatments = float(info[1].rstrip("\n"))  
+            elif(str.startswith(line, "treatmentVector")):
+                info = re.match(("treatmentVector=(.*)"), line)
+                info = str(info[1]).split(";")
+                for elementVec in info:
+                    treatmentAlteration = str(elementVec).split(",")
+                    tmpTreatmentVec = None
+                    for element in treatmentAlteration:
+                        element = element.replace("[","") 
+                        element = element.replace("]","") 
+                        treatmentNum = float(element)
+                        if(tmpTreatmentVec is not None):
+                            tmpTreatmentVec.append(treatmentNum)
+                        else:
+                            tmpTreatmentVec = [treatmentNum]
+                    if(self.treatmentVector is not None):
+                        self.treatmentVector.append(tmpTreatmentVec)
+                    else:
+                        self.treatmentVector = [tmpTreatmentVec]
+            elif(str.startswith(line, "batches")):
+                            info = re.match(("batches=(.*)"), line)
+                            self.batches = float(info[1].rstrip("\n"))  
+            elif(str.startswith(line, "batchFactors")):
+                            info = re.match(("batchFactors=(.*)"), line)
+                            info = str(info[1]).split(",")
+                            for batchNum in info:
+                                num = float(batchNum)
+                                if(self.batchFactors is not None):
+                                    self.batchFactors.append(num)
+                                else:
+                                    self.batchFactors = [num]           
+                                                         
+    def __init__(self, paramter_file):
+        self.__parseParameters(paramter_file)
 
-    def __simulateProteinCountMatrix(self, abDuplicates = 1):
+class SingleCellSimulation():
+
+    """ PARAMETERS """
+    parameters = None
+    ab_sampled = None
+    output_dir = "bin/SIMULATIONS/"
+
+    """ MODELLED DATA """
+    groundTruthData = None
+    #sample * AB matrix of simulated data
+    simulatedData = None
+
+    def __init__(self, parameters):
+        self.parameters = parameters
+
+    """ Generating GroundTruth of the Protein abundancies in all single cells"""
+    def __generateGroundTruth(self, parameters):
         proteinCount = 1
         proteinCountMatrix = None
-        for proteinRange in self.ProteinLevels:
+        for proteinRange in self.parameters.ProteinLevels:
             for i in range(proteinRange.number):
                 #for every protein simulate a neg.binom distibuted number for every cell
                 mu = random.randrange(proteinRange.start, proteinRange.end)
                 #TO DO: size variance of neg.binom distribution is simpy a random value +- 1
                 size_variance = random.randrange(-1, 1)
-                size = self.size + size_variance
-                dist = ProteinCountDistribution(self.CellNumber, mu, size)
+                size = self.parameters.size + size_variance
+                dist = ProteinCountDistribution(self.parameters.CellNumber, mu, size)
                 proteinCountVector = dist.distributionValues()
                 abName = "AB" + str(proteinCount)
                 #add it to a matrix as a new column
                 if(proteinCountMatrix is None):
                     proteinCountMatrix = pd.DataFrame({abName : proteinCountVector}) 
-                    proteinCountMatrix.index = ["sample_" + str(j+1) for j in range(self.CellNumber)]
+                    proteinCountMatrix.index = ["sample_" + str(j+1) for j in range(self.parameters.CellNumber)]
                 else:
                     proteinCountMatrix[abName] = proteinCountVector
 
@@ -117,21 +179,7 @@ class Parameters():
         proteinCountMatrix = proteinCountMatrix.melt(id_vars = ["sample_id"], var_name="ab_id", value_name="ab_count")
         self.groundTruthData = proteinCountMatrix
 
-    def __init__(self, paramter_file):
-        self.__parseParameters(paramter_file)
-        self.__simulateProteinCountMatrix()
-
-class SingleCellSimulation():
-
-    parameters = None
-    #sample * AB matrix of simulated data
-    simulatedData = None
-    ab_sampled = None
-    output_dir = "bin/SIMULATIONS/"
-
-    def __init__(self, parameters):
-        self.parameters = parameters
-
+    """ Simulating the Detection of the GroudnTruth Protein Counts """
     def __simulate_ab_binding(self, data):
         number = int(self.parameters.abBindingEfficiency * len(data.index))
         tmp_simulatedData = data.sample(n=number, replace=False, random_state=1, weights = 'ab_count')
@@ -142,33 +190,58 @@ class SingleCellSimulation():
         umiData["umi_id"] = range(len(umiData.index))
         return(umiData)
 
+    def __pcrAmplify(self, data):
+    
+        pcrNumber = int(self.parameters.pcrCapture * len(data.index))
+
+        for i in range(int(self.parameters.pcrCycles)):
+            print("PCR Cycle " + str(i))
+            tmp_readsToPcrAmplify = data.sample(n=pcrNumber, replace = False, random_state=1)
+            data = pd.concat([data, tmp_readsToPcrAmplify])
+                
+        #sample from all UMIs and remove umis that occur several times
+        seqNumber = int(self.parameters.seqAmplificationEfficiency * len(data.index))
+        data = data.sample(n=seqNumber, replace = False, random_state=1)
+
+        data = data.drop_duplicates()
+
+        return(data)
+        
     def __simulate_sequencing_binding(self, data):
         #simulate UMIs
         #for every line simulate UMIs according to ab_count column
-        print(data[data["sample_id"] == "sample_1"])
+        print("Generate single reads per protein count with UMI")
         umiData = self.__generateUmiData(data)
 
-        #sample from all UMIs and remove umis that occur several times
-        number = int(self.parameters.seqAmplificationEfficiency * len(umiData.index))
-        tmp_simulatedData = umiData.sample(n=number, replace = True, random_state=1)
-        print(tmp_simulatedData[tmp_simulatedData["sample_id"] == "sample_1"])
-        tmp_simulatedData = tmp_simulatedData.drop_duplicates()
-        print(tmp_simulatedData[tmp_simulatedData["sample_id"] == "sample_1"])
+        #PCR amplify those reads
+        #sampling several times(for each PCR cycle) wo replacement and combine the old and sampled dataset
+        # (previously simply sample w replacement and a sampling number > 1: however this neglects the idea that reads sampled in the first PCR
+        # cycles are more likely to be overrepresented in the downrun)
+        print("Generate PCR amplifications of reads")
+        pcrData = self.__pcrAmplify(umiData)
+        
+        #concatenate again reads for same Protein in same cell after removing UMI column
+        print("Concatenate all reads again to protein counts per cell")
+        concatenatedData = pcrData.drop(columns=["umi_id"])
+        concatenatedData["ab_count"] = concatenatedData.groupby(['sample_id', 'ab_id'])['sample_id'].transform('size')
+        concatenatedData = concatenatedData.drop_duplicates()
 
-        #accumulate again ab_ids for all samples
-        tmp_simulatedData = tmp_simulatedData.drop(columns=["umi_id"])
-        tmp_simulatedData["ab_count"] = tmp_simulatedData.groupby(['sample_id', 'ab_id'])['sample_id'].transform('size')
-        tmp_simulatedData = tmp_simulatedData.drop_duplicates()
-        print(tmp_simulatedData[tmp_simulatedData["sample_id"] == "sample_1"])
+        return(concatenatedData)
 
-        return(tmp_simulatedData)
-
+    """ MAIN FUNCTION: 
+    1. generates ground truth & 
+    2. simulates the protein count detection
+    """
     def simulateData(self):
-        #simulate AB binding efficiency
-        #discard a fraction of proteinCounts as no AB has bound them
-        tmp_simulatedData = self.__simulate_ab_binding(self.parameters.groundTruthData)
 
-        self.ab_sampled = tmp_simulatedData
+        #generate ground truth of the protein levels in each cell
+        self.__generateGroundTruth(self.parameters)
+
+        #simulate AB binding efficiency
+        #discard a fraction of proteinCounts as no AB has bound to them
+        tmp_simulatedData = self.__simulate_ab_binding(self.groundTruthData)
+
+        #self.ab_sampled = tmp_simulatedData
 
         #simulate PCR amplification and sequencing
         #sampling with replacement to simulate PCR amplification as well as missing out on reads during washing/ sequencing
@@ -177,12 +250,14 @@ class SingleCellSimulation():
 
         return(self.simulatedData)
 
+    """ SAVE THE DATA """
     def save_data(self, groundTruth = False):
         #safe data
+        print("Safe Data")
         if(groundTruth):
-            self.parameters.groundTruthData.to_csv(self.output_dir + "/GroundTruthData.tsv", sep='\t')
+            self.groundTruthData.to_csv(self.output_dir + "/GroundTruthData.tsv", sep='\t')
         else:
             self.simulatedData.to_csv(self.output_dir + "/SimulatedData.tsv", sep='\t')
-            self.ab_sampled.to_csv(self.output_dir + "/AbData.tsv", sep='\t')
+            #self.ab_sampled.to_csv(self.output_dir + "/AbData.tsv", sep='\t')
 
 
