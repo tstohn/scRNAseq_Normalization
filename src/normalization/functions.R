@@ -24,7 +24,11 @@ get_dataset_specific_column_names<-function(path)
   {
     matches <- str_match(setting_lines,paste0(col,"=(.*)"))
     path=na.omit(as.vector(matches))
-    if(!assertthat::are_equal(length(path), 2))
+    if(length(path)==0)
+    {
+      print(paste0("Missing compulsory column: ", col))
+    }
+    else if(!assertthat::are_equal(length(path), 2))
     {
       print(paste0("More than one datasets line are given in ini file of dataset"))
     }
@@ -47,7 +51,11 @@ get_prefilter_thresholds<-function(path)
   {
     matches <- str_match(setting_lines,paste0(col,"=(.*)"))
     path=na.omit(as.vector(matches))
-    if(!assertthat::are_equal(length(path), 2))
+    if(length(path)==0)
+    {
+      print(paste0("Certain Prefilter threshold were not given (not compulsary); thresholds to set: ", col))
+    }
+    else if(!assertthat::are_equal(length(path), 2))
     {
       print(paste0("More than one datasets line are given in ini file of dataset"))
     }
