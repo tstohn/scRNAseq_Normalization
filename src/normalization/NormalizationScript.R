@@ -72,12 +72,12 @@ prefilter_dataset<-function(data, thresholds)
     mutate(na=any(is.na(across(!starts_with("sample_id"))))) %>%
     select(sample_id, na) %>%
     filter(na==TRUE)
-
+  
   sample_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_sd$name))
   sample_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_na$sample_id))
   sample_ids_to_filter<-append(sample_ids_to_filter, as.vector(outlier_lowUmi_sample$sample_id))
   
-  print(paste0("Removing outliers: ", length(unique(sample_ids_to_filter))))
+  print(paste0("Removing outliers: ", length(unique(sample_ids_to_filter)), " of in total: ", length(unique(data$sample_id)), " samples"))
   data <- data[ !data$sample_id %in% sample_ids_to_filter,]
   
   return(data)

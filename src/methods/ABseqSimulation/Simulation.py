@@ -30,7 +30,8 @@ class ProteinCountDistribution():
     def __init__(self, number, mu, size):
         #calculate n and p parameters
         n, p = self.__convert_params(mu, size)
-        self.abCountVector = nbinom.rvs(n ,p, size = number)
+        abCountVector = nbinom.rvs(n ,p, size = number)
+        self.abCountVector = abCountVector
 
     def distributionValues(self):
         return(self.abCountVector)
@@ -54,9 +55,7 @@ class Parameters():
     abDuplicates = 1
     pcrCycles=1
     pcrCapture=1
-    treatments=0
     treatmentVector = None
-    batches=1
     batchFactors=None
 
     """ PARAMETERS
@@ -100,9 +99,6 @@ class Parameters():
             elif(str.startswith(line, "pcrCapture")):
                 info = re.match(("pcrCapture=(.*)"), line)
                 self.pcrCapture = float(info[1].rstrip("\n"))  
-            elif(str.startswith(line, "treatments")):
-                info = re.match(("treatments=(.*)"), line)
-                self.treatments = float(info[1].rstrip("\n"))  
             elif(str.startswith(line, "treatmentVector")):
                 info = re.match(("treatmentVector=(.*)"), line)
                 info = str(info[1]).split(";")
@@ -121,9 +117,6 @@ class Parameters():
                         self.treatmentVector.append(tmpTreatmentVec)
                     else:
                         self.treatmentVector = [tmpTreatmentVec]
-            elif(str.startswith(line, "batches")):
-                            info = re.match(("batches=(.*)"), line)
-                            self.batches = float(info[1].rstrip("\n"))  
             elif(str.startswith(line, "batchFactors")):
                             info = re.match(("batchFactors=(.*)"), line)
                             info = str(info[1]).split(",")
@@ -133,7 +126,7 @@ class Parameters():
                                     self.batchFactors.append(num)
                                 else:
                                     self.batchFactors = [num]           
-                                                         
+
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
 
@@ -152,8 +145,8 @@ class SingleCellSimulation():
     def __init__(self, parameters):
         self.parameters = parameters
 
-    """ Generating GroundTruth of the Protein abundancies in all single cells"""
-    def __generateGroundTruth(self, parameters):
+    """ functions to simulate the cell * proteinCount matrix"""
+    def __generate_neg_binom_distributed_protein_counts(self):
         proteinCount = 1
         proteinCountMatrix = None
         for proteinRange in self.parameters.ProteinLevels:
@@ -177,6 +170,32 @@ class SingleCellSimulation():
         
         proteinCountMatrix = proteinCountMatrix.reset_index().rename(columns={ 'index' : 'sample_id'})
         proteinCountMatrix = proteinCountMatrix.melt(id_vars = ["sample_id"], var_name="ab_id", value_name="ab_count")
+        return(proteinCountMatrix)
+
+    """ model treatment effect into data """
+    def __insert_treatment_effect(self, data):
+        treatmentFrames = np.array_split(data, len(self.parameters.treatmentVector))
+        print("Simulating " + str(len(treatmentFrames)) + "treaments")
+        i = 0
+        for frame in treatmentFrames:
+            shiftValues = self.parameters.treatmentVector[i]
+            for value in shiftValues:
+
+                ++i
+
+    """ model benchmark effect """
+    def __insert_benchmark_effect(self, data):
+        x=1
+
+    """ Generating GroundTruth of the Protein abundancies in all single cells """
+    def __generateGroundTruth(self, parameters):
+        #generate matrix of cells * proteinCounts
+        proteinCountMatrix = self.__generate_neg_binom_distributed_protein_counts()
+        
+        proteinCountMatrix.insert(0, 'cluster_id', 'cluster')
+        proteinCountMatrix.insert(0, 'batch_id', 'batch')
+        proteinCountMatrix.insert(0, 'ab_type', 'ab')
+        
         self.groundTruthData = proteinCountMatrix
 
     """ Simulating the Detection of the GroudnTruth Protein Counts """
@@ -202,8 +221,26 @@ class SingleCellSimulation():
         #sample from all UMIs and remove umis that occur several times
         seqNumber = int(self.parameters.seqAmplificationEfficiency * len(data.index))
         data = data.sample(n=seqNumber, replace = False, random_state=1)
-
         data = data.drop_duplicates()
+
+        #concatenate all UMI reads to one value
+        data = data.drop(columns=["umi_id"])
+        #concatenate again reads for same Protein in same cell after removing UMI column
+        print("Concatenate all reads again to protein counts per cell")
+        data["ab_count"] = data.groupby(['sample_id', 'ab_id'])['sample_id'].transform('size')
+        concatenatedData = data.drop_duplicates()
+
+        #insert zeroes for all the no sampled values 
+        # (therefore pivot into wider shape to easily detect nans, 
+        # then convert them to zeroes and convert back to origional format)
+        #save all the columns that we have to keep in this process (ab_id and ab_count are the ones we use for pivoting)
+        idColumns = concatenatedData.columns
+        idColumns = list(idColumns.drop(["ab_id","ab_count"]))
+
+        dataPivoted=concatenatedData.pivot(index=idColumns, columns='ab_id')['ab_count'].reset_index()
+        dataPivoted.columns.name = None
+        dataPivoted = dataPivoted.fillna(0)
+        data = dataPivoted.melt(id_vars = idColumns, var_name="ab_id", value_name="ab_count")
 
         return(data)
         
@@ -219,14 +256,8 @@ class SingleCellSimulation():
         # cycles are more likely to be overrepresented in the downrun)
         print("Generate PCR amplifications of reads")
         pcrData = self.__pcrAmplify(umiData)
-        
-        #concatenate again reads for same Protein in same cell after removing UMI column
-        print("Concatenate all reads again to protein counts per cell")
-        concatenatedData = pcrData.drop(columns=["umi_id"])
-        concatenatedData["ab_count"] = concatenatedData.groupby(['sample_id', 'ab_id'])['sample_id'].transform('size')
-        concatenatedData = concatenatedData.drop_duplicates()
 
-        return(concatenatedData)
+        return(pcrData)
 
     """ MAIN FUNCTION: 
     1. generates ground truth & 
