@@ -9,7 +9,7 @@ normalization:
 	Rscript --quiet src/normalization/NormalizationScript.R SUBSAMPLING $(DATA)
 	Rscript --quiet src/normalization/NormalizationScript.R CLR_COMPOSITIONS $(DATA)
 	Rscript --quiet src/normalization/NormalizationScript.R EXPORT_FILTERED_DATA $(DATA)
-	python3 src/methods/GraphNormalization/main.py $(DATA)
+	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/datasets/2_preprocessed/$(DATA)
 
 
 make graph_norm:

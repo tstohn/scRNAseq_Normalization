@@ -55,7 +55,9 @@ class Parameters():
     abDuplicates = 1
     pcrCycles=1
     pcrCapture=1
+    libSize=[1,1]
     treatmentVector = None
+    diffExProteins = None
     batchFactors=None
 
     """ PARAMETERS
@@ -117,15 +119,39 @@ class Parameters():
                         self.treatmentVector.append(tmpTreatmentVec)
                     else:
                         self.treatmentVector = [tmpTreatmentVec]
+            elif(str.startswith(line, "diffExProteins")):
+                info = re.match(("diffExProteins=(.*)"), line)
+                info = str(info[1]).split(";")
+                for elementVec in info:
+                    diffExProteinIds = str(elementVec).split(",")
+                    tmpProtIdVec = None
+                    for element in diffExProteinIds:
+                        element = element.replace("[","") 
+                        element = element.replace("]","") 
+                        protId = ("AB" + str(element))
+                        if(tmpProtIdVec is not None):
+                            tmpProtIdVec.append(protId)
+                        else:
+                            tmpProtIdVec = [protId]
+                    if(self.diffExProteins is not None):
+                        self.diffExProteins.append(tmpProtIdVec)
+                    else:
+                        self.diffExProteins = [tmpProtIdVec]
             elif(str.startswith(line, "batchFactors")):
-                            info = re.match(("batchFactors=(.*)"), line)
-                            info = str(info[1]).split(",")
-                            for batchNum in info:
-                                num = float(batchNum)
-                                if(self.batchFactors is not None):
-                                    self.batchFactors.append(num)
-                                else:
-                                    self.batchFactors = [num]           
+                info = re.match(("batchFactors=(.*)"), line)
+                info = str(info[1]).split(",")
+                for batchNum in info:
+                    num = float(batchNum)
+                    if(self.batchFactors is not None):
+                        self.batchFactors.append(num)
+                    else:
+                        self.batchFactors = [num]   
+            elif(str.startswith(line, "libSize")):
+                info = re.match(("libSize=\[(.*)\]"), line)
+                info = str(info[1]).split(",")
+                assert(len(info)==2)
+                self.libSize[0]=float(info[0])
+                self.libSize[1]=float(info[1])
 
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
@@ -174,18 +200,77 @@ class SingleCellSimulation():
 
     """ model treatment effect into data """
     def __insert_treatment_effect(self, data):
-        treatmentFrames = np.array_split(data, len(self.parameters.treatmentVector))
-        print("Simulating " + str(len(treatmentFrames)) + "treaments")
+
+        result = []
+        concatedTreatments = None
+        
+        #generate lists of sampleIds for each treatment
+        sampleIdVector = (data["sample_id"].unique())
+        sampleIdList = np.array_split(sampleIdVector, len(self.parameters.treatmentVector)+1 )
+        print("Simulating " + str(len(self.parameters.treatmentVector)) + " treaments.")
         i = 0
-        for frame in treatmentFrames:
+        
+        #model each treatment with its own samples (except for the first one, that one stays uneffected)
+        dataTreatment = data[data["sample_id"].isin(sampleIdList[0])]
+        dataTreatment["cluster_id"] = "control"
+        result.append(dataTreatment)
+        for sampleIds in sampleIdList[1:]:
+            #SHIFTVALUES IS VECTOR OF FACTORS AND DATATREATMENT IS VECTOR OF SAMPLE IDS
+            dataTreatment = data[data["sample_id"].isin(sampleIds)]
             shiftValues = self.parameters.treatmentVector[i]
+            #for each differentially expressed protein
+            j = 0
             for value in shiftValues:
+                proteinId = self.parameters.diffExProteins[i][j]
+                dataTreatment.loc[dataTreatment["ab_id"] == proteinId, "ab_count"] *= value
 
-                ++i
+                print("Data with Treatment effect: ")
+                print(dataTreatment.loc[dataTreatment["ab_id"] == proteinId, "ab_count"])
 
-    """ model benchmark effect """
-    def __insert_benchmark_effect(self, data):
-        x=1
+                j+=1
+            dataTreatment["cluster_id"] = str(i)
+            result.append(dataTreatment)
+            i+=1
+        concatedTreatments = pd.concat(result)
+        self.groundTruthData = concatedTreatments
+
+        return(concatedTreatments)
+
+    """ model batch effect """
+    def __insert_batch_effect(self, data):
+        batches = len(self.parameters.batchFactors)
+        result = []
+
+        #generate lists of sampleIds for each batch
+        sampleIdVector = (data["sample_id"].unique())
+        sampleIdList = np.array_split(sampleIdVector, batches)
+        print("Simulating " + str(batches) + " batches.")
+
+        #generate a new dataframe for each batch
+        i = 0
+        for sampleIds in sampleIdList:
+            dataBatch = data[data["sample_id"].isin(sampleIds)]
+            dataBatch["ab_count"] *= self.parameters.batchFactors[i]
+            dataBatch["batch_id"] = str(i)
+            result.append(dataBatch)
+            i+=1
+
+        concatedBatches = pd.concat(result)
+        return(concatedBatches)
+
+    """ model libsize effect """
+    def __insert_libsize_effect(self, data):
+        print("Simulating different libsizes.")
+        result = []
+        sampleIdVector = (data["sample_id"].unique())
+        for sampleId in sampleIdVector:
+            n = random.uniform(self.parameters.libSize[0],self.parameters.libSize[1])
+            dataSample = data[data["sample_id"] == sampleId]
+            dataSample["ab_count"] *= n
+            result.append(dataSample)
+
+        concatedSamples = pd.concat(result)
+        return(concatedSamples)
 
     """ Generating GroundTruth of the Protein abundancies in all single cells """
     def __generateGroundTruth(self, parameters):
@@ -194,7 +279,7 @@ class SingleCellSimulation():
         
         proteinCountMatrix.insert(0, 'cluster_id', 'cluster')
         proteinCountMatrix.insert(0, 'batch_id', 'batch')
-        proteinCountMatrix.insert(0, 'ab_type', 'ab')
+        proteinCountMatrix.insert(0, 'ab_type', 'any_ab')
         
         self.groundTruthData = proteinCountMatrix
 
@@ -267,10 +352,16 @@ class SingleCellSimulation():
 
         #generate ground truth of the protein levels in each cell
         self.__generateGroundTruth(self.parameters)
+        #add additional data pertubations
+        self.__insert_treatment_effect(self.groundTruthData)
+        perturbedData = self.__insert_batch_effect(self.groundTruthData)
+        print(perturbedData)
+        perturbedData = self.__insert_libsize_effect(perturbedData)
+        print(perturbedData)
 
         #simulate AB binding efficiency
         #discard a fraction of proteinCounts as no AB has bound to them
-        tmp_simulatedData = self.__simulate_ab_binding(self.groundTruthData)
+        tmp_simulatedData = self.__simulate_ab_binding(perturbedData)
 
         #self.ab_sampled = tmp_simulatedData
 
@@ -286,9 +377,9 @@ class SingleCellSimulation():
         #safe data
         print("Safe Data")
         if(groundTruth):
-            self.groundTruthData.to_csv(self.output_dir + "/GroundTruthData.tsv", sep='\t')
+            self.groundTruthData.to_csv(self.output_dir + "/GroundTruthData.tsv", sep='\t', index = False)
         else:
-            self.simulatedData.to_csv(self.output_dir + "/SimulatedData.tsv", sep='\t')
+            self.simulatedData.to_csv(self.output_dir + "/SimulatedData.tsv", sep='\t', index = False)
             #self.ab_sampled.to_csv(self.output_dir + "/AbData.tsv", sep='\t')
 
 
