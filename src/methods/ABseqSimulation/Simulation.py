@@ -311,11 +311,10 @@ class SingleCellSimulation():
                 #origional negbinom distribution + factor times dependant protein count
                 data.loc[data["ab_id"] == corr.prot2,"ab_count"] += np.array(data.loc[data["ab_id"] == corr.prot1,"ab_count"]) * corr.factor
             else:
-                #origional negbinom dist - factor times dependant protein count
-                data.loc[data["ab_id"] == corr.prot2,"ab_count"] -= (np.array(data.loc[data["ab_id"] == corr.prot1,"ab_count"]) * corr.factor)
+                #origional negbinom dist - factor times dependant protein count (be aware: corr.factor is negative, so the whoel value is ADDED to old score)
+                data.loc[data["ab_id"] == corr.prot2,"ab_count"] += (np.array(data.loc[data["ab_id"] == corr.prot1,"ab_count"]) * corr.factor)
 
-
-        data.loc[data["ab_count"] < 0,"ab_count"] == 0
+        data.loc[data["ab_count"] < 0,"ab_count"] = 0
 
         self.groundTruthData = self.groundTruthData.sort_values(by=['sample_id'])
         self.groundTruthData = data
