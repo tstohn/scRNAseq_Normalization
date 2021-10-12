@@ -5,6 +5,7 @@ import numpy as np
 from collections import namedtuple
 import random
 import pandas as pd
+pd.options.mode.chained_assignment = None  # default='warn': to disable the warning message when subsetting data ('A value is trying to be set on a copy of a slice from a DataFrame.')
 import regex as re
 from dataclasses import dataclass
 
@@ -172,7 +173,7 @@ class Parameters():
                     posCorr = True
                     if(m[2] == "-"):
                         posCorr = False
-                    cor = self.proteinCorrelation(int(m[1]), int(m[3]), posCorr, 1)
+                    cor = self.proteinCorrelation("AB"+(m[1]), "AB"+m[3], posCorr, 1)
                     self.proteinCorrelations.append(cor)
             elif(str.startswith(line, "proteinCorrelationFactors=")):
                 print("ASSIGNING THE FACTOR FOR TRANSDUCTIONS NETWOEK")
@@ -298,6 +299,28 @@ class SingleCellSimulation():
         concatedSamples = pd.concat(result)
         return(concatedSamples)
 
+    """ model correlated proteins """
+    def __insert_correlations_betweeen_proteins(self, data):
+        #sort data first according to sample
+        #(when we change values for certain proteins we add values of another protein, the returned vector
+        # might not be in the same order of sampels if not sorted first)
+        data = data.sort_values(by=['sample_id'])
+
+        for corr in self.parameters.proteinCorrelations:
+            if(corr.positiveCorrelation):
+                #origional negbinom distribution + factor times dependant protein count
+                data.loc[data["ab_id"] == corr.prot2,"ab_count"] += np.array(data.loc[data["ab_id"] == corr.prot1,"ab_count"]) * corr.factor
+            else:
+                #origional negbinom dist - factor times dependant protein count
+                data.loc[data["ab_id"] == corr.prot2,"ab_count"] -= (np.array(data.loc[data["ab_id"] == corr.prot1,"ab_count"]) * corr.factor)
+
+
+        data.loc[data["ab_count"] < 0,"ab_count"] == 0
+
+        self.groundTruthData = self.groundTruthData.sort_values(by=['sample_id'])
+        self.groundTruthData = data
+        return(data)
+
     """ Generating GroundTruth of the Protein abundancies in all single cells """
     def __generateGroundTruth(self, parameters):
         #generate matrix of cells * proteinCounts
@@ -330,6 +353,7 @@ class SingleCellSimulation():
             data = pd.concat([data, tmp_readsToPcrAmplify])
                 
         #sample from all UMIs and remove umis that occur several times
+        print("Sampling from UMIs")
         seqNumber = int(self.parameters.seqAmplificationEfficiency * len(data.index))
         data = data.sample(n=seqNumber, replace = False, random_state=1)
         data = data.drop_duplicates()
@@ -361,6 +385,8 @@ class SingleCellSimulation():
         print("Generate single reads per protein count with UMI")
         umiData = self.__generateUmiData(data)
 
+        print("Simulating with a library size of: " + str(len(umiData)))
+
         #PCR amplify those reads
         #sampling several times(for each PCR cycle) wo replacement and combine the old and sampled dataset
         # (previously simply sample w replacement and a sampling number > 1: however this neglects the idea that reads sampled in the first PCR
@@ -378,12 +404,14 @@ class SingleCellSimulation():
 
         #generate ground truth of the protein levels in each cell
         self.__generateGroundTruth(self.parameters)
-        #add additional data pertubations
+        
+        #add additional features into ground truth data
         self.__insert_treatment_effect(self.groundTruthData)
+        self.__insert_correlations_betweeen_proteins(self.groundTruthData)
+
+        #add additional data pertubations
         perturbedData = self.__insert_batch_effect(self.groundTruthData)
-        print(perturbedData)
         perturbedData = self.__insert_libsize_effect(perturbedData)
-        print(perturbedData)
 
         #simulate AB binding efficiency
         #discard a fraction of proteinCounts as no AB has bound to them
