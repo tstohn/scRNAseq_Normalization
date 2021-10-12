@@ -5,6 +5,8 @@ import numpy as np
 from collections import namedtuple
 import random
 import pandas as pd
+import regex as re
+from dataclasses import dataclass
 
 #data from paper
     # 25 cycles of PCR
@@ -39,6 +41,13 @@ class ProteinCountDistribution():
 #generates a ground truth matrix for protein counts
 class Parameters():
 
+    @dataclass
+    class proteinCorrelation:
+        prot1: int
+        prot2: int
+        positiveCorrelation: bool
+        factor: int
+
     #incubation time is considered constant for now
     #antibody count is not considered for now: in sc IDseq constant AB concentration was used for all targets (0.1myg/ml over night)
     #biological variation matrix
@@ -59,6 +68,8 @@ class Parameters():
     treatmentVector = None
     diffExProteins = None
     batchFactors=None
+
+    proteinCorrelations = []
 
     """ PARAMETERS
         rangeVector: a vector of quadruples(range, number, mean, std) for Abs of different distributions
@@ -152,6 +163,25 @@ class Parameters():
                 assert(len(info)==2)
                 self.libSize[0]=float(info[0])
                 self.libSize[1]=float(info[1])
+            elif(str.startswith(line, "proteinCorrelation=")):
+                info = re.match(("proteinCorrelation=\[(.*)\]"), line)
+                info = str(info[1]).split(",")
+                for correlation in info:
+                    p = re.compile('\[(\d*)([+-])(\d*)\]')
+                    m = p.match(correlation)
+                    posCorr = True
+                    if(m[2] == "-"):
+                        posCorr = False
+                    cor = self.proteinCorrelation(int(m[1]), int(m[3]), posCorr, 1)
+                    self.proteinCorrelations.append(cor)
+            elif(str.startswith(line, "proteinCorrelationFactors=")):
+                print("ASSIGNING THE FACTOR FOR TRANSDUCTIONS NETWOEK")
+                info = re.match(("proteinCorrelationFactors=\[(.*)\]"), line)
+                info = str(info[1]).split(",")
+                i = 0
+                for factor in info:
+                    self.proteinCorrelations[i].factor = float(factor)
+                    i+=1
 
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
@@ -223,10 +253,6 @@ class SingleCellSimulation():
             for value in shiftValues:
                 proteinId = self.parameters.diffExProteins[i][j]
                 dataTreatment.loc[dataTreatment["ab_id"] == proteinId, "ab_count"] *= value
-
-                print("Data with Treatment effect: ")
-                print(dataTreatment.loc[dataTreatment["ab_id"] == proteinId, "ab_count"])
-
                 j+=1
             dataTreatment["cluster_id"] = str(i)
             result.append(dataTreatment)
