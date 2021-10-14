@@ -36,3 +36,7 @@ update_requirements:
 install_requirements:
 	. ./scRNAseq/bin/activate && \
 	pip3 install -r .requirements_Py.txt
+
+
+test_simulation:
+	python3 ./src/methods/ABseqSimulation/main.py ./examples/simulation.ini

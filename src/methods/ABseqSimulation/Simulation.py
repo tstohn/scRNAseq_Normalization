@@ -8,6 +8,10 @@ import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn': to disable the warning message when subsetting data ('A value is trying to be set on a copy of a slice from a DataFrame.')
 import regex as re
 from dataclasses import dataclass
+import sys
+
+def LINE():
+    return sys._getframe(1).f_lineno
 
 #data from paper
     # 25 cycles of PCR
@@ -63,6 +67,8 @@ class Parameters():
     size = None
     CellNumber = None
     abDuplicates = 1
+    abDuplicateRange = [1,1]
+    abDuplicateDisturbance=0
     pcrCycles=1
     pcrCapture=1
     libSize=[1,1]
@@ -164,6 +170,12 @@ class Parameters():
                 assert(len(info)==2)
                 self.libSize[0]=float(info[0])
                 self.libSize[1]=float(info[1])
+            elif(str.startswith(line, "abDuplicateRange")):
+                info = re.match(("abDuplicateRange=\[(.*)\]"), line)
+                info = str(info[1]).split(",")
+                assert(len(info)==2)
+                self.abDuplicateRange[0]=float(info[0])
+                self.abDuplicateRange[1]=float(info[1])
             elif(str.startswith(line, "proteinCorrelation=")):
                 info = re.match(("proteinCorrelation=\[(.*)\]"), line)
                 info = str(info[1]).split(",")
@@ -176,13 +188,15 @@ class Parameters():
                     cor = self.proteinCorrelation("AB"+(m[1]), "AB"+m[3], posCorr, 1)
                     self.proteinCorrelations.append(cor)
             elif(str.startswith(line, "proteinCorrelationFactors=")):
-                print("ASSIGNING THE FACTOR FOR TRANSDUCTIONS NETWOEK")
                 info = re.match(("proteinCorrelationFactors=\[(.*)\]"), line)
                 info = str(info[1]).split(",")
                 i = 0
                 for factor in info:
                     self.proteinCorrelations[i].factor = float(factor)
                     i+=1
+            elif(str.startswith(line, "abDuplicateDisturbance=")):
+                info = re.match(("abDuplicateDisturbance=(.*)"), line)
+                self.abDuplicateDisturbance=float(info[1])
 
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
@@ -293,14 +307,15 @@ class SingleCellSimulation():
         for sampleId in sampleIdVector:
             n = random.uniform(self.parameters.libSize[0],self.parameters.libSize[1])
             dataSample = data[data["sample_id"] == sampleId]
-            dataSample["ab_count"] *= n
+            dataSample["ab_count"] = (n * dataSample["ab_count"])
+            dataSample["ab_count"] = dataSample["ab_count"].round(decimals = 0)
             result.append(dataSample)
 
         concatedSamples = pd.concat(result)
         return(concatedSamples)
 
     """ model correlated proteins """
-    def __insert_correlations_betweeen_proteins(self, data):
+    def __insert_correlations_between_proteins(self, data):
         #sort data first according to sample
         #(when we change values for certain proteins we add values of another protein, the returned vector
         # might not be in the same order of sampels if not sorted first)
@@ -320,6 +335,30 @@ class SingleCellSimulation():
         self.groundTruthData = data
         return(data)
 
+    """ model duplicates for ABs """
+    #call this function as last for generating ground truth, otherwise the duplicates could be distributed in different bins for
+    #treatment/ protein correlation effects
+    def __insert_ab_duplicates(self, data):
+        print("Simulating AB duplicates.")
+        firstAbData = data.copy()
+        firstAbData["ab_id"] = firstAbData["ab_id"] + "a"
+        result = [firstAbData]
+        abIdVector = (data["ab_id"].unique())
+        for abId in abIdVector:
+            for i in range(1,self.parameters.abDuplicates):
+                n = random.uniform(self.parameters.abDuplicateRange[0],self.parameters.abDuplicateRange[1])
+                dataSample = data[data["ab_id"] == abId]
+                dataSample["ab_id"] = dataSample["ab_id"] + chr(97+i)
+                #Ab duplicate is n-times the origional value
+                dataSample["ab_count"] = (n * dataSample["ab_count"])
+                #and is disturbed by a normal dist
+                dataSample["ab_count"] = np.random.normal(dataSample["ab_count"], self.parameters.abDuplicateDisturbance*dataSample["ab_count"])
+                dataSample["ab_count"] = dataSample["ab_count"].round(decimals = 0)
+                dataSample.loc[dataSample["ab_count"] < 0,"ab_count"] = 0
+                result.append(dataSample)
+        concatedSamples = pd.concat(result)
+        return(concatedSamples)
+
     """ Generating GroundTruth of the Protein abundancies in all single cells """
     def __generateGroundTruth(self, parameters):
         #generate matrix of cells * proteinCounts
@@ -333,12 +372,16 @@ class SingleCellSimulation():
 
     """ Simulating the Detection of the GroudnTruth Protein Counts """
     def __simulate_ab_binding(self, data):
-        number = int(self.parameters.abBindingEfficiency * len(data.index))
+        nonZeroEntries = np.count_nonzero(data.ab_count)
+        number = int(self.parameters.abBindingEfficiency * nonZeroEntries)
         tmp_simulatedData = data.sample(n=number, replace=False, random_state=1, weights = 'ab_count')
         return(tmp_simulatedData)
 
     def __generateUmiData(self, data):
-        umiData = data.loc[data.index.repeat(data.ab_count)]
+
+        #reset index before repeating index elements
+        data = data.reset_index()
+        umiData = data.loc[data.index.repeat(data["ab_count"])]
         umiData["umi_id"] = range(len(umiData.index))
         return(umiData)
 
@@ -356,12 +399,14 @@ class SingleCellSimulation():
         seqNumber = int(self.parameters.seqAmplificationEfficiency * len(data.index))
         data = data.sample(n=seqNumber, replace = False, random_state=1)
         data = data.drop_duplicates()
-
+        
         #concatenate all UMI reads to one value
         data = data.drop(columns=["umi_id"])
         #concatenate again reads for same Protein in same cell after removing UMI column
         print("Concatenate all reads again to protein counts per cell")
+        #count the grouped rows, col after groupby doesn t matter,can be anything (sample_id used here)
         data["ab_count"] = data.groupby(['sample_id', 'ab_id'])['sample_id'].transform('size')
+
         concatenatedData = data.drop_duplicates()
 
         #insert zeroes for all the no sampled values 
@@ -381,9 +426,8 @@ class SingleCellSimulation():
     def __simulate_sequencing_binding(self, data):
         #simulate UMIs
         #for every line simulate UMIs according to ab_count column
-        print("Generate single reads per protein count with UMI")
+        print("Generate single reads per protein count with UMI. Number data points[cell x AB]: " + str(data.shape[0]))
         umiData = self.__generateUmiData(data)
-
         print("Simulating with a library size of: " + str(len(umiData)))
 
         #PCR amplify those reads
@@ -403,15 +447,20 @@ class SingleCellSimulation():
 
         #generate ground truth of the protein levels in each cell
         self.__generateGroundTruth(self.parameters)
-        
         #add additional features into ground truth data
-        self.__insert_treatment_effect(self.groundTruthData)
-        self.__insert_correlations_betweeen_proteins(self.groundTruthData)
+        if(not (self.parameters.treatmentVector is None)):
+            self.__insert_treatment_effect(self.groundTruthData)
+        if(len(self.parameters.proteinCorrelations) > 0):
+            self.__insert_correlations_between_proteins(self.groundTruthData)
 
         #add additional data pertubations
-        perturbedData = self.__insert_batch_effect(self.groundTruthData)
-        perturbedData = self.__insert_libsize_effect(perturbedData)
-
+        perturbedData = self.groundTruthData
+        if(self.parameters.abDuplicates > 1):
+            perturbedData = self.__insert_ab_duplicates(perturbedData)
+        if(not (self.parameters.batchFactors is None)):
+            perturbedData = self.__insert_batch_effect(perturbedData)
+        if(not (self.parameters.libSize[0]==1 and self.parameters.libSize[1]==1)):
+            perturbedData = self.__insert_libsize_effect(perturbedData)
         #simulate AB binding efficiency
         #discard a fraction of proteinCounts as no AB has bound to them
         tmp_simulatedData = self.__simulate_ab_binding(perturbedData)
@@ -421,6 +470,7 @@ class SingleCellSimulation():
         #simulate PCR amplification and sequencing
         #sampling with replacement to simulate PCR amplification as well as missing out on reads during washing/ sequencing
         tmp_simulatedData = self.__simulate_sequencing_binding(tmp_simulatedData)
+
         self.simulatedData = tmp_simulatedData
 
         return(self.simulatedData)
