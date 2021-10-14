@@ -40,3 +40,6 @@ install_requirements:
 
 test_simulation:
 	python3 ./src/methods/ABseqSimulation/main.py ./examples/simulation.ini
+
+test_simulation_benchmark:
+	python3 ./src/methods/ABseqSimulationBenchmark/main.py ../datasets/Simulations/

@@ -351,8 +351,8 @@ class SingleCellSimulation():
                 dataSample["ab_id"] = dataSample["ab_id"] + chr(97+i)
                 #Ab duplicate is n-times the origional value
                 dataSample["ab_count"] = (n * dataSample["ab_count"])
-                #and is disturbed by a normal dist
-                dataSample["ab_count"] = np.random.normal(dataSample["ab_count"], self.parameters.abDuplicateDisturbance*dataSample["ab_count"])
+                #and is disturbed by a normal dist, the variance is variance parameter times average of origional AB count
+                dataSample["ab_count"] = np.random.normal(dataSample["ab_count"], self.parameters.abDuplicateDisturbance*np.mean(data[data.ab_id==abId]["ab_count"]))
                 dataSample["ab_count"] = dataSample["ab_count"].round(decimals = 0)
                 dataSample.loc[dataSample["ab_count"] < 0,"ab_count"] = 0
                 result.append(dataSample)
@@ -374,13 +374,13 @@ class SingleCellSimulation():
     def __simulate_ab_binding(self, data):
         nonZeroEntries = np.count_nonzero(data.ab_count)
         number = int(self.parameters.abBindingEfficiency * nonZeroEntries)
-        tmp_simulatedData = data.sample(n=number, replace=False, random_state=1, weights = 'ab_count')
-        return(tmp_simulatedData)
+
+        return(data)
 
     def __generateUmiData(self, data):
 
         #reset index before repeating index elements
-        data = data.reset_index()
+        data = data.reset_index(drop=True)
         umiData = data.loc[data.index.repeat(data["ab_count"])]
         umiData["umi_id"] = range(len(umiData.index))
         return(umiData)
@@ -393,7 +393,7 @@ class SingleCellSimulation():
             print("PCR Cycle " + str(i))
             tmp_readsToPcrAmplify = data.sample(n=pcrNumber, replace = False, random_state=1)
             data = pd.concat([data, tmp_readsToPcrAmplify])
-                
+        
         #sample from all UMIs and remove umis that occur several times
         print("Sampling from UMIs")
         seqNumber = int(self.parameters.seqAmplificationEfficiency * len(data.index))
@@ -461,9 +461,11 @@ class SingleCellSimulation():
             perturbedData = self.__insert_batch_effect(perturbedData)
         if(not (self.parameters.libSize[0]==1 and self.parameters.libSize[1]==1)):
             perturbedData = self.__insert_libsize_effect(perturbedData)
+
         #simulate AB binding efficiency
         #discard a fraction of proteinCounts as no AB has bound to them
-        tmp_simulatedData = self.__simulate_ab_binding(perturbedData)
+        #deleted for now
+        #tmp_simulatedData = self.__simulate_ab_binding(perturbedData)
 
         #self.ab_sampled = tmp_simulatedData
 
