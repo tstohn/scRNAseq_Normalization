@@ -9,6 +9,7 @@ pd.options.mode.chained_assignment = None  # default='warn': to disable the warn
 import regex as re
 from dataclasses import dataclass
 import sys
+import os
 
 def LINE():
     return sys._getframe(1).f_lineno
@@ -60,6 +61,7 @@ class Parameters():
     ProteinLevel = namedtuple('ProteinLevel', ['start', 'end', 'number'])
 
     """ SIMULATION Parameters """
+    simulationName = ""
     abBindingEfficiency = None
     seqAmplificationEfficiency = None
     #list of namedtuples ProteinLevel
@@ -84,6 +86,7 @@ class Parameters():
     """
 
     def __parseParameters(self, paramFile):
+        self.simulationName = os.path.basename(paramFile.rstrip('.ini'))
         file = open(paramFile, "r")
         line = file.readline()
         while line:
@@ -385,7 +388,7 @@ class SingleCellSimulation():
         umiData["umi_id"] = range(len(umiData.index))
         return(umiData)
 
-    def __pcrAmplify(self, data):
+    def __pcrAmplify(self, data, readNum = 0):
     
         pcrNumber = int(self.parameters.pcrCapture * len(data.index))
 
@@ -396,7 +399,11 @@ class SingleCellSimulation():
         
         #sample from all UMIs and remove umis that occur several times
         print("Sampling from UMIs")
-        seqNumber = int(self.parameters.seqAmplificationEfficiency * len(data.index))
+        seqNumber = 0
+        if(readNum == 0):
+            seqNumber = int(self.parameters.seqAmplificationEfficiency * len(data.index))
+        else:
+            seqNumber = int(readNum)
         data = data.sample(n=seqNumber, replace = False, random_state=1)
         data = data.drop_duplicates()
         
@@ -439,6 +446,33 @@ class SingleCellSimulation():
 
         return(pcrData)
 
+    #SAME AS PREVIOUS VERSION, BUT CELLWISE PCR AMPLIFICATION AND SUBSEQUENT SAMPLING (LOADING READS ON SEQUENCER)
+    #on top of that SUBSAMPLING after PCR is not performed on perc but an absolute threshold
+    #this leads to no skewing in between cells, in case one cell has a much higher protein than others, 
+    #and also leads to possibly new distortions bcs of absolute counts beeing selected, the perc selection
+    #might not change the underlying distribution a lot
+    #=> in total the two methods seemed to not change a lot, looking at totalABcount and proteinWiseABcount distributions
+    def __simulate_sequencing_binding_2(self, data):
+
+        result = []
+        #generate lists of sampleIds for each batch
+        sampleIdVector = (data["sample_id"].unique())
+
+        #generate a new dataframe for each batch
+        i = 0
+        readNum = (data['ab_count'].sum() / len(sampleIdVector)) * self.parameters.seqAmplificationEfficiency
+        for sampleId in sampleIdVector:
+
+            dataSingleCell = data[data.sample_id == sampleId]
+            #for every line simulate UMIs according to ab_count column
+            umiData = self.__generateUmiData(dataSingleCell)
+            pcrData = self.__pcrAmplify(umiData, readNum)
+
+            result.append(pcrData)
+
+        concatedBatches = pd.concat(result)
+        return(concatedBatches)
+
     """ MAIN FUNCTION: 
     1. generates ground truth & 
     2. simulates the protein count detection
@@ -471,7 +505,7 @@ class SingleCellSimulation():
 
         #simulate PCR amplification and sequencing
         #sampling with replacement to simulate PCR amplification as well as missing out on reads during washing/ sequencing
-        tmp_simulatedData = self.__simulate_sequencing_binding(tmp_simulatedData)
+        tmp_simulatedData = self.__simulate_sequencing_binding(perturbedData)
 
         self.simulatedData = tmp_simulatedData
 
@@ -481,10 +515,13 @@ class SingleCellSimulation():
     def save_data(self, groundTruth = False):
         #safe data
         print("Safe Data")
+
+        if not os.path.isdir(self.output_dir):
+            os.makedirs(self.output_dir)
         if(groundTruth):
-            self.groundTruthData.to_csv(self.output_dir + "/GroundTruthData.tsv", sep='\t', index = False)
+            self.groundTruthData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_SIMULATED.tsv", sep='\t', index = False)
         else:
-            self.simulatedData.to_csv(self.output_dir + "/SimulatedData.tsv", sep='\t', index = False)
+            self.simulatedData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_GROUNDTRUTH.tsv", sep='\t', index = False)
             #self.ab_sampled.to_csv(self.output_dir + "/AbData.tsv", sep='\t')
 
 
