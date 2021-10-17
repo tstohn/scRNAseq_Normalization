@@ -158,6 +158,35 @@ run_tmm<-function(data)
   return(normalized_data)
 }
 
+run_leave_one_out_tmm<-function(data)
+{
+  print("RUNNING LEAVE ONE OUT TMM NORMALIZATION")
+  
+  CbindedTMMOutput <- data
+  colVector = c()
+  i <- 0
+  for (abId in unique(data$ab_id))
+  {
+    tmpData <- data[data$ab_id != abId,]
+    tmpTMM <- run_tmm(tmpData)
+    newColName <- paste0("LEAVEONEOUTTMM", as.character(i))
+    colVector = append(colVector, newColName)
+    tmpTMM <- tmpTMM %>%
+      select(sample_id, ab_id, ab_count_normalized) %>%
+      rename( !!newColName := ab_count_normalized)
+    CbindedTMMOutput <- merge(x = CbindedTMMOutput, y = tmpTMM, by = c('sample_id','ab_id'), all.x = TRUE)
+    i = i+1
+  }
+
+  normalized_data <- CbindedTMMOutput
+  normalized_data$ab_count_normalized <- rowSums(normalized_data[,grepl( "LEAVEONEOUTTMM" , names( normalized_data ) )], na.rm=TRUE)
+  normalized_data <- normalized_data %>%
+    select(-all_of(colVector)) %>%
+    mutate(ab_count_normalized = ab_count_normalized / (length(colVector)-1))
+    
+  return(normalized_data)
+}
+
 run_clr<-function(data)
 {
   print("RUNNING CLR (COMPOSITION) NORMALIZATION")
@@ -256,6 +285,50 @@ run_subsampling<-function(data)
   return(normalized_data)
 }
 
+run_leave_one_out_subsampling<-function(data) 
+{
+  print("RUNNING LEAVE ONE OUT SUBSAMPLING NORMALIZATION")
+  
+  CbindedSubsamplingOutput <- data
+  colVector = c()
+  i <- 0
+  for (abId in unique(data$ab_id))
+  {
+    tmpData <- data[data$ab_id != abId,]
+    tmpSubs <- run_subsampling(tmpData)
+    newColName <- paste0("LEAVEONEOUTSUBS", as.character(i))
+    colVector = append(colVector, newColName)
+    tmpSubs <- tmpSubs %>%
+      select(sample_id, ab_id, ab_count_normalized) %>%
+      rename( !!newColName := ab_count_normalized)
+    CbindedSubsamplingOutput <- merge(x = CbindedSubsamplingOutput, y = tmpSubs, by = c('sample_id','ab_id'), all.x = TRUE)
+    i = i+1
+  }
+  
+  normalized_data <- CbindedSubsamplingOutput
+  normalized_data$ab_count_normalized <- rowSums(normalized_data[,grepl( "LEAVEONEOUTSUBS" , names( normalized_data ) )], na.rm=TRUE)
+  normalized_data <- normalized_data %>%
+    select(-all_of(colVector)) %>%
+    mutate(ab_count_normalized = ab_count_normalized / (length(colVector)-1))
+  
+  return(normalized_data)
+}
+
+run_libsize_normalization<-function(data)
+{
+  libsize <- data %>% 
+    group_by(sample_id) %>% 
+    mutate(lib_size = sum(ab_count)) %>% 
+    select(sample_id, lib_size) %>% 
+    ungroup() %>% 
+    distinct()
+  normalized_data <- data %>% 
+    left_join(libsize, by = "sample_id") %>%  
+    mutate(ab_count_normalized = ab_count/(lib_size))
+  
+  return(normalized_data)
+}
+
 run_normalization<-function(dataset, method)
 {
   datapath<-get_dataset_path()
@@ -297,8 +370,18 @@ run_normalization<-function(dataset, method)
     {
       normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
     }
-    print("writin")
     output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/SUBSAMPLED.tsv")
+    write_tsv(normalized_data, file=output_table)
+  }
+  else if(method=="LIBSIZE")
+  {
+    normalized_data<- data %>% 
+      run_libsize_normalization() 
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/LIBSIZE.tsv")
     write_tsv(normalized_data, file=output_table)
   }
   else if(method=="SCTRANSFORM")
@@ -315,6 +398,28 @@ run_normalization<-function(dataset, method)
       normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
     }
     output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLR.tsv")
+    write_tsv(normalized_data, file=output_table)
+  }
+  else if(method=="LEAVE_ONE_OUT_TMM")
+  {
+    normalized_data<- data %>% 
+      run_leave_one_out_tmm() 
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/LeaveOneOutTMM.tsv")
+    write_tsv(normalized_data, file=output_table)
+  }
+  else if(method=="LEAVE_ONE_OUT_SUBSAMPLING")
+  {
+    normalized_data<- data %>% 
+      run_leave_one_out_subsampling() 
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/LeaveOneOutSubsampling.tsv")
     write_tsv(normalized_data, file=output_table)
   }
   else if(method=="EXPORT_FILTERED_DATA")

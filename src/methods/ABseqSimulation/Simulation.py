@@ -488,7 +488,7 @@ class SingleCellSimulation():
             self.__insert_correlations_between_proteins(self.groundTruthData)
 
         #add additional data pertubations
-        perturbedData = self.groundTruthData
+        perturbedData = self.groundTruthData.copy(deep=True)
         if(self.parameters.abDuplicates > 1):
             perturbedData = self.__insert_ab_duplicates(perturbedData)
         if(not (self.parameters.batchFactors is None)):
@@ -512,16 +512,13 @@ class SingleCellSimulation():
         return(self.simulatedData)
 
     """ SAVE THE DATA """
-    def save_data(self, groundTruth = False):
+    def save_data(self):
         #safe data
         print("Safe Data")
 
         if not os.path.isdir(self.output_dir):
             os.makedirs(self.output_dir)
-        if(groundTruth):
-            self.groundTruthData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_SIMULATED.tsv", sep='\t', index = False)
-        else:
-            self.simulatedData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_GROUNDTRUTH.tsv", sep='\t', index = False)
-            #self.ab_sampled.to_csv(self.output_dir + "/AbData.tsv", sep='\t')
 
-
+        
+        self.simulatedData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_SIMULATED.tsv", sep='\t', index = False)
+        self.groundTruthData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_GROUNDTRUTH.tsv", sep='\t', index = False)
