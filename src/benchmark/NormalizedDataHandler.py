@@ -1,4 +1,5 @@
 import os
+import shutil
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -47,7 +48,7 @@ class NormalizedDataHandler:
 
         classification_dict[data_name] = {"X": X, "Y": Y, "FEATURES": feature_ids}
     
-    def __init__(self, file_list):
+    def __init__(self, file_list, deleteBenchmark):
         data_dict = dict()
         classification_dict = dict()
         #generate dictionary of normalized data
@@ -65,16 +66,32 @@ class NormalizedDataHandler:
         #open output file for writing
         folder_path = os.path.dirname(file_list[0])
         folder_name = os.path.basename(folder_path)
+
         if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name):
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
-        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/ConfusionMatrices"):
-            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/ConfusionMatrices")
+        elif(os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name) & deleteBenchmark):
+            shutil.rmtree("bin/BENCHMARKED_DATASETS/"+folder_name)
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
+
+        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/Overview"):
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/Overview")
+
+        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/Classification"):
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/Classification")
+        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/Classification/ConfusionMatrices"):
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/Classification/ConfusionMatrices")
+
         if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/MMDMatrices"):
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/MMDMatrices")
-        self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results.tsv", "w+")
+
+        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/TSNE_ClusterVisualization"):
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/TSNE_ClusterVisualization")
+        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/SpearmanCorrelations"):
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/SpearmanCorrelations")
+        self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Classification/results.tsv", "w+")
         self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
 
-        self.sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/results_spearman.tsv", "w+")
+        self.sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/SpearmanCorrelations/results_spearman.tsv", "w+")
         self.sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATION_MEAN" + "\t" + "SPEARMAN_PVALUE_MEAN" + "\n")
 
         self.dataset_name = folder_name
@@ -124,11 +141,13 @@ class NormalizedDataHandler:
         ax.set_xlabel('Predicted labels');ax.set_ylabel('True labels')
         ax.set_title('Confusion Matrix')
         ax.xaxis.set_ticklabels(label_list); ax.yaxis.set_ticklabels(label_list)
-        plt.savefig(self.folder_path + "ConfusionMatrices/" + data_name + method_string + "_CFMatrix.png")
+        plt.savefig(self.folder_path + "/Classification/ConfusionMatrices/" + data_name + method_string + "_CFMatrix.png")
         plt.close()
 
         print('%s => %s Accuracy[%s] : %.3f (%.3f)' % (self.dataset_name, method_string, data_name, np.mean(global_scores), np.std(global_scores)))
         self.results.write(data_name + "\t" + method_string + "\t" + str(round(np.mean(scores), 2)) + "\t" + str(round(np.std(scores), 2)) + "\n")
+
+        return([np.mean(scores),np.std(scores)])
 
     #private classification metods running on SINGLE method
     def __knn_classification(self, data_name, method_string):
@@ -139,7 +158,7 @@ class NormalizedDataHandler:
                   "p": [1,2],
                   "weights": ["uniform", "distance"],
                   "metric": ["minkowski", "chebyshev"]}
-        self.__classify(data_name, model, params, method_string)
+        return(self.__classify(data_name, model, params, method_string))
 
     def __dt_classification(self, data_name, method_string):
         model = DecisionTreeClassifier(random_state=1)
@@ -148,9 +167,9 @@ class NormalizedDataHandler:
               "max_features": range(10, len(feature_array[1])),
               "min_samples_leaf": range(1, 30),
               "criterion": ["gini", "entropy"]}
-        self.__classify(data_name, model, params, method_string)
+        return(self.__classify(data_name, model, params, method_string))
 
-    def calculate_wanted_and_unwanted_variance(self):
+    def calculate_MMD_between_treatments(self):
         #significance test for between treatment difference 
         for key in self.data:
             data = self.data[key]
@@ -211,19 +230,54 @@ class NormalizedDataHandler:
             legend="full",
             alpha=1
         )
-        plt.savefig(self.folder_path + data_name + "_output.png")
+        plt.savefig(self.folder_path + "TSNE_ClusterVisualization/" + data_name + "_output.png")
         plt.close()
+
+    def draw_treatment_barplot_for_knn_and_dt(self, knnData, dtData):
+        # width of the bars
+        barWidth = 0.3
+        knn = knnData.iloc[0]
+        dt = dtData.iloc[0]
+        
+        # Choose the height of the error bars (bars1)
+        knnVar = knnData.iloc[1]
+        dtVar = dtData.iloc[1]
+        
+        # The x position of bars
+        r1 = np.arange(len(knn))
+        r2 = [x + barWidth for x in r1]
+        
+        # Create knn bars
+        plt.bar(r1, knn, width = barWidth, color = 'blue', edgecolor = 'black', yerr=knnVar, capsize=7, label='KNN')
+        # Create dt bars
+        plt.bar(r2, dt, width = barWidth, color = 'yellow', edgecolor = 'black', yerr=dtVar, capsize=7, label='DT')
+        
+        # general layout
+        plt.xticks([r + barWidth for r in range(len(knn))], knnData.columns)
+        plt.ylabel('height')
+        plt.legend()
+        
+        # Show graphic
+        plt.savefig(self.folder_path + "Overview/TreatmentClassification.png")
         
     #public classification metods running on ALL normalization methods
     def knn_clasification(self):
+        result = pd.DataFrame()
         for key in self.data:
-            self.__knn_classification(key, "KNN")
-
-    #def lg_classification():
+            result[key] = self.__knn_classification(key, "KNN")
+        return(result)
 
     def dt_classification(self):
+        result = pd.DataFrame()
         for key in self.data:
-            self.__dt_classification(key, "DecisionTree")
+            result[key] = self.__dt_classification(key, "DecisionTree")
+        return(result)
+
+    def run_treatment_classification(self):
+        dtScores = self.dt_classification()
+        knnScores = self.knn_clasification()
+
+        self.draw_treatment_barplot_for_knn_and_dt(knnScores, dtScores)
 
     def draw_tsne(self):
         for key in self.data:
@@ -259,22 +313,15 @@ class NormalizedDataHandler:
             graph = graphviz.Source(dot_data, format="png") 
             graph.render(data_name + "decision_tree_graphivz")
 
-    def ab_spearman_correlation(self, filter = ""):
-        plt.figure(figsize=(16,10))
-        lengend_labels = []
-        for key in self.data:
-            data = self.data[key]
-
-            #speacial line for a data set where phospho proteins were excluded due to expected correlations
-            if(filter != ""):
-                data = data[data['ab_type'] == filter]
-
+    def __calculate_all_spearman_correlations(self, data):
             data_subset = data.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
             d_pivot=data_subset.pivot(index = "ab_id", columns='sample_id', values='ab_count_normalized')
-            
+            print(d_pivot)
+            sp=p = None
             try:
                 sp, p = stats.spearmanr(d_pivot, axis = 1)
                 dim=len(sp[0])
+            #except the case tht all values are the same for certan proteins (exclude those)
             except:
                 drop_list = []
                 for i in range(len(d_pivot.index)):
@@ -285,19 +332,68 @@ class NormalizedDataHandler:
                 sp, p = stats.spearmanr(d_pivot, axis = 1)
                 dim=len(sp[0])        
 
+            print(sp)
             sp_values=list(sp[np.triu_indices(dim,1)])
             p_values=list(p[np.triu_indices(dim,1)])
+            #ab_names = list(d_pivot.ab)
+            
+            return(pd.DataFrame({"SPvalues" : sp_values, "Pvalues" : p_values}))
 
-            sp_mean = np.mean(sp_values)
-            p_mean = np.mean(p_values)
+    def ab_spearman_correlation_graph(self, filter = ""):
+        plt.figure(figsize=(16,10))
+        lengend_labels = []
+        for key in self.data:
+            data = self.data[key].copy()
 
-            self.sp_results.write(key + "\t"+ str(round(sp_mean,4)) + "\t" + str(round(p_mean,4)) + "\n")
-            sns.distplot(x=sp_values, hist=False, kde=True)
+            spearmanValues=[]
+            sp_mean = float
+            p_mean = float
+            #speacial line for a data set where phospho proteins were excluded due to expected correlations
+            if(filter != ""):
+                data = data[data['ab_type'] == filter]
+
+            spearmanValues = self.__calculate_all_spearman_correlations(data)
+            sp_mean = np.mean(spearmanValues.SPvalues.to_numpy())
+            p_mean = np.mean(spearmanValues.Pvalues.to_numpy())
+
+            self.sp_results.write(key + "\t"+ str(np.round(sp_mean,4)) + "\t" + str(np.round(p_mean,4)) + "\n")
+            sns.distplot(x=spearmanValues, hist=False, kde=True)
             lengend_labels.append(key)
    
         plt.legend(labels=lengend_labels)
-        plt.savefig(self.folder_path +  "spearman_correlations_" + filter + ".png")
+        plt.savefig(self.folder_path +  "SpearmanCorrelations/spearman_correlations_" + filter + ".png")
         plt.close()
+
+    def ab_correlation_evaluation(self):
+        #search for groundtruth file
+        groundtruth = pd.DataFrame()
+        for key,value in self.data.items():
+            if("GROUNDTRUTH" in key):
+                groundtruth = value
+
+        #build a dataFrame that calculates all correlations between proteins for grondTruth
+        groundTruthCorrelations = self.__calculate_all_spearman_correlations(groundtruth.copy())
+        print(groundTruthCorrelations)
+        #for every norm method
+
+            #calculate same dataFrame and add GroundTruth to it
+
+            #calculate the RMSD and safe it to RMSD matrix
+
+
+        #draw barplot of all RMSDs
+
+
+    def ab_spearman_correlation(self,groundtruth = False, filter = ""):
+        #plot graph of spearman correlations
+        self.ab_spearman_correlation_graph(filter)
+
+        #generate barplot of RMSD for normalized correlations and groundtruth correlations
+        if( (not filter) & (groundtruth) ):
+            self.ab_correlation_evaluation()
+
+    def validate_normalizedData_against_groundTruth(self):
+        print("IN")
 
 
 
