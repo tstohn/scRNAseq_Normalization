@@ -154,7 +154,7 @@ class Benchmark():
 
         #run normalization benchmark
         normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
-        benchmarkCommand = "python3 src/benchmark/benchmark.py " + normResultFilePath
+        benchmarkCommand = "python3 src/benchmark/benchmark.py --groundtruth " + normResultFilePath
         subprocess.run([benchmarkCommand], shell = True, check = True)
 
     #every run of a simulation -> normalizaitons -> benchmark results in a folder in bin/BENCHMARK

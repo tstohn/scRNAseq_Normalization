@@ -28,7 +28,6 @@ def LINE():
 #introduce a technical variance matrix: AB amount differences, annealing differences
 
 class ProteinCountDistribution():
-    abCountVector = None
 
     def __convert_params(self, mu, size):
         p = size/(size+mu)

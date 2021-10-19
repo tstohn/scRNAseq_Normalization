@@ -1,3 +1,4 @@
+from operator import index
 import os
 import shutil
 import pandas as pd
@@ -5,7 +6,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from random import randint
 from scipy import stats
+import itertools
+import math
 
+import sklearn
 from sklearn.datasets import make_classification
 from sklearn.model_selection import cross_val_score, cross_val_predict, KFold, GridSearchCV, RandomizedSearchCV
 from sklearn.tree import *
@@ -25,6 +29,7 @@ class NormalizedDataHandler:
 
     def __init_classification(self, data_name, classification_dict):
         data = self.data[data_name]
+        groundtruth = None
 
         #organize data
         d_pivot=data.pivot(index='sample_id', columns='ab_id', values='ab_count_normalized')
@@ -48,12 +53,18 @@ class NormalizedDataHandler:
 
         classification_dict[data_name] = {"X": X, "Y": Y, "FEATURES": feature_ids}
     
-    def __init__(self, file_list, deleteBenchmark):
+    def __init__(self, file_list, groundtruth, deleteBenchmark):
         data_dict = dict()
         classification_dict = dict()
+
         #generate dictionary of normalized data
+        self.groundtruth = pd.DataFrame()
         for file in file_list:
             data_name = os.path.basename(os.path.splitext(file)[0])
+            if("GROUNDTRUTH" in data_name):
+                data_content = pd.read_csv(file, sep = '\t')
+                self.groundtruth = data_content
+                continue
             data_content = pd.read_csv(file, sep = '\t')
             data_dict[data_name] = data_content
         #dictionary with data for all normalization methods
@@ -96,9 +107,6 @@ class NormalizedDataHandler:
 
         self.dataset_name = folder_name
         self.folder_path = ("bin/BENCHMARKED_DATASETS/"+folder_name+"/")
-
-    #def __del__(self):
-        #self.results.close()
 
     def __calculate_scores(self, model, params, X, y, global_scores, lock, random_factor=None):
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=random_factor)
@@ -253,10 +261,10 @@ class NormalizedDataHandler:
         plt.bar(r2, dt, width = barWidth, color = 'yellow', edgecolor = 'black', yerr=dtVar, capsize=7, label='DT')
         
         # general layout
-        plt.xticks([r + barWidth for r in range(len(knn))], knnData.columns)
+        plt.xticks([r + barWidth for r in range(len(knn))], knnData.columns, rotation = 45, ha='right', rotation_mode='anchor')
         plt.ylabel('height')
         plt.legend()
-        
+        plt.tight_layout()
         # Show graphic
         plt.savefig(self.folder_path + "Overview/TreatmentClassification.png")
         
@@ -297,7 +305,6 @@ class NormalizedDataHandler:
             X=self.class_data.get(data_name, {}).get('X')
             Y=self.class_data.get(data_name, {}).get('Y')
             for train_index, test_index in cv.split(X):
-                print(train_index)
                 X_train, X_test = np.array(X)[train_index], np.array(X)[test_index]
                 y_train, Y_test = np.array(Y)[train_index], np.array(Y)[test_index]
             #model = model.fit(X_train, y_train)
@@ -315,29 +322,18 @@ class NormalizedDataHandler:
 
     def __calculate_all_spearman_correlations(self, data):
             data_subset = data.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
-            d_pivot=data_subset.pivot(index = "ab_id", columns='sample_id', values='ab_count_normalized')
-            print(d_pivot)
-            sp=p = None
-            try:
-                sp, p = stats.spearmanr(d_pivot, axis = 1)
-                dim=len(sp[0])
-            #except the case tht all values are the same for certan proteins (exclude those)
-            except:
-                drop_list = []
-                for i in range(len(d_pivot.index)):
-                    row = d_pivot.iloc[i].values.tolist()
-                    if(all(elem == row[0] for elem in row)):
-                        drop_list.append(i)
-                d_pivot = d_pivot.drop(d_pivot.index[drop_list], axis = 0)
-                sp, p = stats.spearmanr(d_pivot, axis = 1)
-                dim=len(sp[0])        
+            d_pivot=data_subset.pivot(index = "sample_id", columns='ab_id', values='ab_count_normalized')
+            columns = d_pivot.columns.tolist()
+            correlations = {}
 
-            print(sp)
-            sp_values=list(sp[np.triu_indices(dim,1)])
-            p_values=list(p[np.triu_indices(dim,1)])
-            #ab_names = list(d_pivot.ab)
-            
-            return(pd.DataFrame({"SPvalues" : sp_values, "Pvalues" : p_values}))
+            for col_a, col_b in itertools.combinations(columns, 2):
+                correlations[col_a + '_' + col_b] = stats.spearmanr(d_pivot.loc[:, col_a], d_pivot.loc[:, col_b])
+
+            result = pd.DataFrame.from_dict(correlations, orient='index')
+            result.columns = ['SPvalues', 'Pvalues']
+            result.reset_index(inplace=True)
+
+            return(result)
 
     def ab_spearman_correlation_graph(self, filter = ""):
         plt.figure(figsize=(16,10))
@@ -345,19 +341,16 @@ class NormalizedDataHandler:
         for key in self.data:
             data = self.data[key].copy()
 
-            spearmanValues=[]
-            sp_mean = float
-            p_mean = float
             #speacial line for a data set where phospho proteins were excluded due to expected correlations
             if(filter != ""):
                 data = data[data['ab_type'] == filter]
 
             spearmanValues = self.__calculate_all_spearman_correlations(data)
-            sp_mean = np.mean(spearmanValues.SPvalues.to_numpy())
-            p_mean = np.mean(spearmanValues.Pvalues.to_numpy())
+            sp_mean = np.mean(spearmanValues.SPvalues)
+            p_mean = np.mean(spearmanValues.Pvalues)
 
-            self.sp_results.write(key + "\t"+ str(np.round(sp_mean,4)) + "\t" + str(np.round(p_mean,4)) + "\n")
-            sns.distplot(x=spearmanValues, hist=False, kde=True)
+            self.sp_results.write(key + "\t"+ str(round(sp_mean,4)) + "\t" + str(round(p_mean,4)) + "\n")
+            sns.distplot(x=spearmanValues.SPvalues, hist=False, kde=True)
             lengend_labels.append(key)
    
         plt.legend(labels=lengend_labels)
@@ -365,24 +358,34 @@ class NormalizedDataHandler:
         plt.close()
 
     def ab_correlation_evaluation(self):
-        #search for groundtruth file
-        groundtruth = pd.DataFrame()
-        for key,value in self.data.items():
-            if("GROUNDTRUTH" in key):
-                groundtruth = value
 
         #build a dataFrame that calculates all correlations between proteins for grondTruth
-        groundTruthCorrelations = self.__calculate_all_spearman_correlations(groundtruth.copy())
-        print(groundTruthCorrelations)
+        groundTruthCorrelations = self.__calculate_all_spearman_correlations(self.groundtruth.copy())
+        
+        normRMSDData = {}
         #for every norm method
-
+        for key in self.data:
+            if("GROUNDTRUTH" in key):
+                continue
+            data = self.data[key].copy()
             #calculate same dataFrame and add GroundTruth to it
+            normCorrelations = self.__calculate_all_spearman_correlations(data)
+            normCorrelations.columns = ['index','SPvalues_norm', 'Pvalues_norm']
 
+            result = pd.merge(groundTruthCorrelations, normCorrelations, how="outer", on = "index")
             #calculate the RMSD and safe it to RMSD matrix
-
-
+            mse = sklearn.metrics.mean_squared_error(result.SPvalues, result.SPvalues_norm)
+            rmsd = math.sqrt(mse)
+            normRMSDData[key] = rmsd
         #draw barplot of all RMSDs
-
+        values = normRMSDData.values()
+        normMethods = normRMSDData.keys()
+        y_pos = np.arange(len(normMethods))
+        plt.bar(y_pos, values, color = 'blue', edgecolor = 'black')
+        plt.xticks(y_pos, normMethods, rotation = 45, ha='right', rotation_mode='anchor')
+        plt.tight_layout()
+        plt.savefig(self.folder_path + "Overview/CorrelationRMSD.png")
+        plt.close()
 
     def ab_spearman_correlation(self,groundtruth = False, filter = ""):
         #plot graph of spearman correlations
@@ -392,9 +395,61 @@ class NormalizedDataHandler:
         if( (not filter) & (groundtruth) ):
             self.ab_correlation_evaluation()
 
-    def validate_normalizedData_against_groundTruth(self):
-        print("IN")
+    def __calc_fold_changes_between_totalABCounts_and_ABmin(self, data):
 
+        summedData = data.groupby(['sample_id'])['ab_count_normalized'].sum().reset_index()
+        summedData.rename(columns={'ab_count_normalized' :'ab_count_total'}, inplace=True)
+
+        summedData = pd.merge(summedData, data, how="outer", on = ["sample_id"])
+        summedData.drop_duplicates(inplace=True)
+        
+        data_subset = summedData.loc[:,['sample_id', 'ab_count_total']]
+        totalCountDict = dict(zip(data_subset.sample_id, data_subset.ab_count_total))     
+
+        minCount = min(totalCountDict.values())   
+        foldChanges = {}
+        for sample in totalCountDict.keys():
+            foldChanges[sample] = totalCountDict[sample]/minCount
+
+        result = pd.DataFrame.from_dict(foldChanges, orient='index')
+        result.columns = ['foldChange']
+        result.reset_index(inplace=True)
+
+        return(result)
+
+    def validate_normalizedData_against_groundTruth(self):
+        
+        normRMSDData = {}
+        #for every norm method
+        for key in self.data:
+            if(key == "CLR"):
+                continue
+            dataNorm = self.data[key].copy()
+            dataNorm = dataNorm[['sample_id', 'ab_id', 'ab_count_normalized']]
+            dataNorm = self.__calc_fold_changes_between_totalABCounts_and_ABmin(dataNorm)
+            dataNorm.rename(columns={'foldChange' :'foldChange_norm'},inplace=True)
+            
+            dataTruth = self.groundtruth.copy()
+            dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
+            dataTruth = self.__calc_fold_changes_between_totalABCounts_and_ABmin(dataTruth)
+            dataTruth.rename(columns={'foldChange' :'foldChange_truth'},inplace=True)
+
+            result = pd.merge(dataNorm, dataTruth, how="outer", on = ["index"])
+
+            #calculate the RMSD and safe it to RMSD matrix
+            mse = sklearn.metrics.mean_squared_error(result.foldChange_norm, result.foldChange_truth)
+            rmsd = math.sqrt(mse)
+            normRMSDData[key] = rmsd
+
+        #draw barplot of all RMSDs
+        values = normRMSDData.values()
+        normMethods = normRMSDData.keys()
+        y_pos = np.arange(len(normMethods))
+        plt.bar(y_pos, values, color = 'blue', edgecolor = 'black')
+        plt.xticks(y_pos, normMethods, rotation = 45, ha='right', rotation_mode='anchor')
+        plt.tight_layout()
+        plt.savefig(self.folder_path + "Overview/ABCountRMSD.png")
+        plt.close()
 
 
 

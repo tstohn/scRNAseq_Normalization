@@ -21,22 +21,22 @@ def parse_args(argv):
 
 def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter):
     #initialization
-    benchmark = NormalizedDataHandler(dataset, deleteBenchmark)
+    benchmark = NormalizedDataHandler(dataset, groundtruth, deleteBenchmark)
 
     #additional visualizations
     #benchmark.draw_tsne()
     #benchmark.calculate_MMD_between_treatments()
 
     #elaborate analysis of norm methods
-    #benchmark.run_treatment_classification()
+    benchmark.run_treatment_classification()
     benchmark.ab_spearman_correlation(groundtruth) # make RMSD of correlation differences => barplot
 
     if(groundtruth):
-        #RMSD of real to norm data => barplot
-        benchmark.validate_normalizedData_against_groundTruth()
-        #calculate detected correlations of proteins
+        benchmark.validate_normalizedData_against_groundTruth() #RMSD of fold cahnges between total AB counts per sample 
+        #(idea: insample fold cahnges between dofferent protein counts stay the same after normalization, only the different samples are scaled)
+        #calculate detected correlations of proteins - check we have wanted and not unwanted corr
         #calculate removed batch effect
-        #calculate detected treatment effect
+        #calculate detected treatment effect - check we have wanted treatment effect and not unwanted
 
     #additional correlation analysis for a subset od the data
     if(spearmanFilter):
