@@ -1,6 +1,7 @@
 from operator import index
 import os
 import shutil
+from cv2 import rotate
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +9,7 @@ from random import randint
 from scipy import stats
 import itertools
 import math
+import random
 
 import sklearn
 from sklearn.datasets import make_classification
@@ -149,7 +151,7 @@ class NormalizedDataHandler:
         ax.set_xlabel('Predicted labels');ax.set_ylabel('True labels')
         ax.set_title('Confusion Matrix')
         ax.xaxis.set_ticklabels(label_list); ax.yaxis.set_ticklabels(label_list)
-        plt.savefig(self.folder_path + "/Classification/ConfusionMatrices/" + data_name + method_string + "_CFMatrix.png")
+        plt.savefig(self.folder_path + "/Classification/ConfusionMatrices/" + data_name + method_string + "_CFMatrix.png", dpi=199)
         plt.close()
 
         print('%s => %s Accuracy[%s] : %.3f (%.3f)' % (self.dataset_name, method_string, data_name, np.mean(global_scores), np.std(global_scores)))
@@ -216,7 +218,7 @@ class NormalizedDataHandler:
             ax.set_title('MMD Matrix')
             #ax.xaxis.set_ticklabels(label_list)
             #ax.yaxis.set_ticklabels(label_list)
-            plt.savefig(self.folder_path + "MMDMatrices/" + key + ".png")
+            plt.savefig(self.folder_path + "MMDMatrices/" + key + ".png", dpi=199)
             plt.close()
 
     def __draw_tsne(self, data_name):
@@ -238,7 +240,7 @@ class NormalizedDataHandler:
             legend="full",
             alpha=1
         )
-        plt.savefig(self.folder_path + "TSNE_ClusterVisualization/" + data_name + "_output.png")
+        plt.savefig(self.folder_path + "TSNE_ClusterVisualization/" + data_name + "_output.png", dpi=199)
         plt.close()
 
     def draw_treatment_barplot_for_knn_and_dt(self, knnData, dtData):
@@ -261,13 +263,15 @@ class NormalizedDataHandler:
         plt.bar(r2, dt, width = barWidth, color = 'yellow', edgecolor = 'black', yerr=dtVar, capsize=7, label='DT')
         
         # general layout
-        plt.xticks([r + barWidth for r in range(len(knn))], knnData.columns, rotation = 45, ha='right', rotation_mode='anchor')
-        plt.ylabel('height')
-        plt.legend()
+        plt.xticks([r + barWidth for r in range(len(knn))], knnData.columns, rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
+        plt.yticks(fontsize = 8)
+        plt.ylabel('Accuracy', fontsize = 9)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 8)
         plt.tight_layout()
         # Show graphic
-        plt.savefig(self.folder_path + "Overview/TreatmentClassification.png")
-        
+        plt.savefig(self.folder_path + "Overview/TreatmentClassification.png", dpi=199)
+        plt.close()
+
     #public classification metods running on ALL normalization methods
     def knn_clasification(self):
         result = pd.DataFrame()
@@ -354,7 +358,7 @@ class NormalizedDataHandler:
             lengend_labels.append(key)
    
         plt.legend(labels=lengend_labels)
-        plt.savefig(self.folder_path +  "SpearmanCorrelations/spearman_correlations_" + filter + ".png")
+        plt.savefig(self.folder_path +  "SpearmanCorrelations/spearman_correlations_" + filter + ".png", dpi=199)
         plt.close()
 
     def ab_correlation_evaluation(self):
@@ -382,9 +386,11 @@ class NormalizedDataHandler:
         normMethods = normRMSDData.keys()
         y_pos = np.arange(len(normMethods))
         plt.bar(y_pos, values, color = 'blue', edgecolor = 'black')
-        plt.xticks(y_pos, normMethods, rotation = 45, ha='right', rotation_mode='anchor')
+        plt.ylabel('RMSD of correlations between AB counts', fontsize = 10)
+        plt.xticks(y_pos, normMethods, rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
+        plt.yticks(fontsize = 8)
         plt.tight_layout()
-        plt.savefig(self.folder_path + "Overview/CorrelationRMSD.png")
+        plt.savefig(self.folder_path + "Overview/CorrelationRMSD.png", dpi=199)
         plt.close()
 
     def ab_spearman_correlation(self,groundtruth = False, filter = ""):
@@ -446,12 +452,114 @@ class NormalizedDataHandler:
         normMethods = normRMSDData.keys()
         y_pos = np.arange(len(normMethods))
         plt.bar(y_pos, values, color = 'blue', edgecolor = 'black')
-        plt.xticks(y_pos, normMethods, rotation = 45, ha='right', rotation_mode='anchor')
+        plt.ylabel('RMSD of the ration \n(total AB count/min(total AB count)) per sample', fontsize = 10)
+        plt.xticks(y_pos, normMethods, rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
+        plt.yticks(fontsize = 8)
         plt.tight_layout()
-        plt.savefig(self.folder_path + "Overview/ABCountRMSD.png")
+        plt.savefig(self.folder_path + "Overview/ABCountRMSD.png", dpi=199)
         plt.close()
 
+    def validate_wanted_correlations(self, proteinCorrelations):
+        
+        #for the proteinCorrelations calcualte the spearman correlation for groundtruth and norm
+        indices = []
+        columnNames = ["groundtruth"]
+        wantedVarProteinList = []
+        for corr in proteinCorrelations:
+            prot1 = corr.prot1
+            prot2 = corr.prot2
+            wantedVarProteinList.append(prot1)
+            wantedVarProteinList.append(prot2)
+            indices.append(prot1 + '_' + prot2)
+        for key in self.data:
+            columnNames.append(key)
+        correlations = pd.DataFrame(columns = columnNames, index  = indices)
 
+        for corr in proteinCorrelations:
+            prot1 = corr.prot1
+            prot2 = corr.prot2
+            #groundtruth
+            dataTruth = self.groundtruth.copy()
+            dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
+            spvalue = stats.spearmanr(dataTruth.loc[dataTruth.ab_id == prot1, ["ab_count_normalized"]], dataTruth.loc[dataTruth.ab_id == prot2, ["ab_count_normalized"]]).correlation
+            correlations.loc[prot1 + '_' + prot2, "groundtruth"] = float(spvalue)
 
+            for key in self.data:
+                data = self.data[key].copy()
+                data = data[['sample_id', 'ab_id', 'ab_count_normalized']]
+                spvalue = stats.spearmanr(data.loc[data.ab_id == prot1, ["ab_count_normalized"]], data.loc[data.ab_id == prot2, ["ab_count_normalized"]]).correlation
+                correlations.loc[prot1 + '_' + prot2, key] = float(spvalue)
 
+        #correlations.astype(np.float64)
+        cols = correlations.columns.values.tolist()
+        correlations[cols] = correlations[cols].apply(pd.to_numeric, errors='coerce', axis=1)
+        correlations.round(2)
+        wantedCorrelations = correlations.copy()
 
+        #ax= plt.subplot()
+        #sns.heatmap(correlations, annot=True, annot_kws={"size": 5}, cmap="viridis", vmin = 0, vmax = 1) # font size
+        #ax.set_ylabel('AB Correlations', fontsize = 10)
+        #ax.set_title('AB Correlations', fontsize = 10)
+        #ax.vlines([1], *ax.get_ylim(), linewidth = 2, color = "red")
+        #plt.xticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
+        #plt.yticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
+        #plt.legend( fontsize='8', title_fontsize = '10') # for legend text
+        #plt.tight_layout()
+        #plt.savefig(self.folder_path + "Overview/WantedCorrelationHeatmap.png", dpi=199)
+        #plt.close()
+
+        #UNWANTED CORRELATIONS
+        #for the proteinCorrelations calcualte the spearman correlation for groundtruth and norm
+        unwantedProteins = self.groundtruth["ab_id"].unique()
+        unwantedProteinList = [x for x in unwantedProteins if x not in wantedVarProteinList]
+
+        negProteinCorrelations = []
+        for prot1, prot2 in itertools.combinations(unwantedProteinList, 2):
+            cor = (prot1, prot2)
+            negProteinCorrelations.append(cor)
+
+        negProteinCorrelations = random.sample(negProteinCorrelations, 50)
+        indices = []
+        columnNames = ["groundtruth"]
+        for corr in negProteinCorrelations:
+            prot1 = corr[0]
+            prot2 = corr[1]
+            indices.append(prot1 + '_' + prot2)
+        for key in self.data:
+            columnNames.append(key)
+        correlations = pd.DataFrame(columns = columnNames, index  = indices)
+
+        for corr in negProteinCorrelations:
+            prot1 = corr[0]
+            prot2 = corr[1]
+            #groundtruth
+            dataTruth = self.groundtruth.copy()
+            dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
+            spvalue = stats.spearmanr(dataTruth.loc[dataTruth.ab_id == prot1, ["ab_count_normalized"]], dataTruth.loc[dataTruth.ab_id == prot2, ["ab_count_normalized"]]).correlation
+            correlations.loc[prot1 + '_' + prot2, "groundtruth"] = float(spvalue)
+
+            for key in self.data:
+                data = self.data[key].copy()
+                data = data[['sample_id', 'ab_id', 'ab_count_normalized']]
+                spvalue = stats.spearmanr(data.loc[data.ab_id == prot1, ["ab_count_normalized"]], data.loc[data.ab_id == prot2, ["ab_count_normalized"]]).correlation
+                correlations.loc[prot1 + '_' + prot2, key] = float(spvalue)
+
+        #correlations.astype(np.float64)
+        cols = correlations.columns.values.tolist()
+        correlations[cols] = correlations[cols].apply(pd.to_numeric, errors='coerce', axis=1)
+        correlations.round(2)
+
+        correlations = pd.concat([wantedCorrelations, correlations])
+
+        ax= plt.subplot()
+        sns.heatmap(correlations, annot=False, annot_kws={"size": 5}, cmap="viridis", vmin = 0, vmax = 1, cbar_kws={"shrink": .70}) # font size
+        # labels, title and ticks
+        ax.set_ylabel('AB Correlations', fontsize = 10)
+        ax.set_title('AB Correlations', fontsize = 10)
+        ax.vlines([1], *ax.get_ylim(), linewidth = 2, color = "red")
+        ax.hlines([len(wantedCorrelations)], *ax.get_xlim(), linewidth = 2, color = "red")
+        plt.xticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
+        plt.yticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 6)
+        plt.tight_layout()
+        plt.savefig(self.folder_path + "Overview/UnwantedCorrelationHeatmap.png", dpi=199)
+        plt.close()

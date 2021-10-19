@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-from Benchmark import Parameters,Benchmark
+from simBenchmark import Parameters,Benchmark
 from os import listdir
 from os.path import isfile, join
 import regex as re

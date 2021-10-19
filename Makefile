@@ -19,7 +19,7 @@ make graph_norm:
 benchmark:
 	mkdir -p bin/BENCHMARKED_DATASETS
 	. ./scRNAseq/bin/activate && \
-	python3 src/benchmark/benchmark.py bin/NORMALIZED_DATASETS
+	python3 src/normBenchmark/benchmark.py bin/NORMALIZED_DATASETS
 
 make all:
 	make normalization
