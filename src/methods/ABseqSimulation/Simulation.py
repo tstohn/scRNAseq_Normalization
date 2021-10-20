@@ -514,7 +514,7 @@ class SingleCellSimulation():
 
         #simulate PCR amplification and sequencing
         #sampling with replacement to simulate PCR amplification as well as missing out on reads during washing/ sequencing
-        tmp_simulatedData = self.__simulate_sequencing_binding(perturbedData)
+        tmp_simulatedData = self.__simulate_sequencing_binding_2(perturbedData)
 
         self.simulatedData = tmp_simulatedData
 
