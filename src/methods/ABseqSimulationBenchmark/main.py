@@ -27,10 +27,13 @@ def main():
 
     #run this as threads
     for ini in iniFileList:
-        param = Parameters(ini)
-        benchmark = Benchmark(param)
-        benchmark.run()
-        benchmark.moveIntoOneFolder(newSimulationDir)
+        try:
+            param = Parameters(ini)
+            benchmark = Benchmark(param)
+            benchmark.run()
+            benchmark.moveIntoOneFolder(newSimulationDir)
+        except:
+            print("Could not run Benchmark on " + ini)
 
 if __name__ == '__main__':
     main()
