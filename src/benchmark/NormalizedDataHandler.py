@@ -574,6 +574,7 @@ class NormalizedDataHandler:
         plt.savefig(self.folder_path + "Overview/UnwantedCorrelationHeatmap.png", dpi=199)
         plt.close()
 
+    #mean values are in the end divided by the smallest AB value
     def __get_AB_mean_dataFrame(self, data):
 
         batchIds = data["batch_id"].unique()
@@ -583,6 +584,8 @@ class NormalizedDataHandler:
             dataBatchMeanAbCounts = dataBatch.groupby(['ab_id'])['ab_count_normalized'].mean().reset_index()
             dataBatchMeanAbCounts.rename(columns={'ab_count_normalized' :'ab_count_mean'}, inplace=True)
             dataBatchMeanAbCounts = dataBatchMeanAbCounts[['ab_id', 'ab_count_mean']]
+            minValue = min(dataBatchMeanAbCounts["ab_count_mean"])
+            dataBatchMeanAbCounts["ab_count_mean"] = dataBatchMeanAbCounts["ab_count_mean"]/minValue
             dataBatchMeanAbCounts.set_index('ab_id', inplace = True)
             result[batch] = dataBatchMeanAbCounts['ab_count_mean']
 

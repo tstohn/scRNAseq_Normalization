@@ -476,6 +476,9 @@ class SingleCellSimulation():
         concatedBatches = pd.concat(result)
         return(concatedBatches)
 
+    def __add_batch_effect_to_ground_truth(self, newData):
+        self.groundTruthData = pd.merge(self.groundTruthData,newData[['sample_id','ab_id','batch_id']],on=['sample_id','ab_id'], how='left')
+
     """ MAIN FUNCTION: 
     1. generates ground truth & 
     2. simulates the protein count detection
@@ -496,8 +499,11 @@ class SingleCellSimulation():
             perturbedData = self.__insert_ab_duplicates(perturbedData)
         if(not (self.parameters.batchFactors is None)):
             perturbedData = self.__insert_batch_effect(perturbedData)
+            self.__add_batch_effect_to_ground_truth(perturbedData)
         if(not (self.parameters.libSize[0]==1 and self.parameters.libSize[1]==1)):
             perturbedData = self.__insert_libsize_effect(perturbedData)
+
+        
 
         #simulate AB binding efficiency
         #discard a fraction of proteinCounts as no AB has bound to them
