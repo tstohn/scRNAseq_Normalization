@@ -120,10 +120,16 @@ class Benchmark():
         for norm in self.parameters.normMethods:
             if(norm == "GRAPH"):
                 commandString = "python3 src/methods/GraphNormalization/main.py " + normOriginFilePath
-                subprocess.run([commandString], shell = True, check = True)
+                try:
+                    subprocess.run([commandString], shell = True, check = True)
+                except:
+                    print("ERROR: Normalization method " + norm + " failed")
             else:
                 commandString = "Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv"
-                subprocess.run([commandString], shell = True, check = True)
+                try:
+                    subprocess.run([commandString], shell = True, check = True)
+                except:
+                    print("ERROR: Normalization method " + norm + " failed")
         #move also ground truth into normalization folder
         groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH.tsv"
         groundTruthResultFilePath = simulationFilePath + groundTruthName
@@ -135,25 +141,28 @@ class Benchmark():
         commandString = "cp " + simulatedResultFilePath + " ./bin/NORMALIZED_DATASETS/" + simulationName + "/" + simulatedName
         subprocess.run([commandString], shell = True, check = True)
 
-        #remove the ab_count with ab_count_normalized to still run benchmark on it
-        #from ground truth
-        groundTruthFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + groundTruthName)
-        groundTruthDataStream = open(groundTruthFile, "rt")
-        dataGroundTruth = groundTruthDataStream.read()
-        dataGroundTruth = dataGroundTruth.replace('ab_count', 'ab_count_normalized')
-        groundTruthDataStream.close()
-        groundTruthDataStream = open(groundTruthFile, "wt")
-        groundTruthDataStream.write(dataGroundTruth)
-        groundTruthDataStream.close()
-        #from simulated file
-        simulatedFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + simulatedName)
-        simulatedDataStream = open(simulatedFile, "rt")
-        dataSimulated = simulatedDataStream.read()
-        dataSimulated = dataSimulated.replace('ab_count', 'ab_count_normalized')
-        simulatedDataStream.close()
-        simulatedDataStream = open(simulatedFile, "wt")
-        simulatedDataStream.write(dataSimulated)
-        simulatedDataStream.close()
+        try:
+            #remove the ab_count with ab_count_normalized to still run benchmark on it
+            #from ground truth
+            groundTruthFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + groundTruthName)
+            groundTruthDataStream = open(groundTruthFile, "rt")
+            dataGroundTruth = groundTruthDataStream.read()
+            dataGroundTruth = dataGroundTruth.replace('ab_count', 'ab_count_normalized')
+            groundTruthDataStream.close()
+            groundTruthDataStream = open(groundTruthFile, "wt")
+            groundTruthDataStream.write(dataGroundTruth)
+            groundTruthDataStream.close()
+            #from simulated file
+            simulatedFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + simulatedName)
+            simulatedDataStream = open(simulatedFile, "rt")
+            dataSimulated = simulatedDataStream.read()
+            dataSimulated = dataSimulated.replace('ab_count', 'ab_count_normalized')
+            simulatedDataStream.close()
+            simulatedDataStream = open(simulatedFile, "wt")
+            simulatedDataStream.write(dataSimulated)
+            simulatedDataStream.close()
+        except:
+            print("ERROR for moving simulated and groundTruth data")
 
         #run normalization benchmark
         normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
