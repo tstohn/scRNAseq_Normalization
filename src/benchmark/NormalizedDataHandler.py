@@ -10,6 +10,7 @@ from scipy import stats
 import itertools
 import math
 import random
+import collections
 
 import sklearn
 from sklearn.datasets import make_classification
@@ -66,7 +67,6 @@ class NormalizedDataHandler:
             if("GROUNDTRUTH" in data_name):
                 data_content = pd.read_csv(file, sep = '\t')
                 self.groundtruth = data_content
-                continue
             data_content = pd.read_csv(file, sep = '\t')
             data_dict[data_name] = data_content
         #dictionary with data for all normalization methods
@@ -426,19 +426,20 @@ class NormalizedDataHandler:
     def validate_normalizedData_against_groundTruth(self):
         
         normRMSDData = {}
+        dataTruth = self.groundtruth.copy()
+        dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
+        dataTruth = self.__calc_fold_changes_between_totalABCounts_and_ABmin(dataTruth)
+        dataTruth.rename(columns={'foldChange' :'foldChange_truth'},inplace=True)
         #for every norm method
         for key in self.data:
             if(key == "CLR"):
+                continue
+            if("GROUNDTRUTH" in key):
                 continue
             dataNorm = self.data[key].copy()
             dataNorm = dataNorm[['sample_id', 'ab_id', 'ab_count_normalized']]
             dataNorm = self.__calc_fold_changes_between_totalABCounts_and_ABmin(dataNorm)
             dataNorm.rename(columns={'foldChange' :'foldChange_norm'},inplace=True)
-            
-            dataTruth = self.groundtruth.copy()
-            dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
-            dataTruth = self.__calc_fold_changes_between_totalABCounts_and_ABmin(dataTruth)
-            dataTruth.rename(columns={'foldChange' :'foldChange_truth'},inplace=True)
 
             result = pd.merge(dataNorm, dataTruth, how="outer", on = ["index"])
 
@@ -459,7 +460,7 @@ class NormalizedDataHandler:
         plt.savefig(self.folder_path + "Overview/ABCountRMSD.png", dpi=199)
         plt.close()
 
-    def validate_wanted_correlations(self, proteinCorrelations):
+    def validate_correlations(self, proteinCorrelations):
         
         #for the proteinCorrelations calcualte the spearman correlation for groundtruth and norm
         indices = []
@@ -472,6 +473,8 @@ class NormalizedDataHandler:
             wantedVarProteinList.append(prot2)
             indices.append(prot1 + '_' + prot2)
         for key in self.data:
+            if("GROUNDTRUTH" in key):
+                continue
             columnNames.append(key)
         correlations = pd.DataFrame(columns = columnNames, index  = indices)
 
@@ -485,6 +488,8 @@ class NormalizedDataHandler:
             correlations.loc[prot1 + '_' + prot2, "groundtruth"] = float(spvalue)
 
             for key in self.data:
+                if("GROUNDTRUTH" in key):
+                    continue
                 data = self.data[key].copy()
                 data = data[['sample_id', 'ab_id', 'ab_count_normalized']]
                 spvalue = stats.spearmanr(data.loc[data.ab_id == prot1, ["ab_count_normalized"]], data.loc[data.ab_id == prot2, ["ab_count_normalized"]]).correlation
@@ -526,6 +531,8 @@ class NormalizedDataHandler:
             prot2 = corr[1]
             indices.append(prot1 + '_' + prot2)
         for key in self.data:
+            if("GROUNDTRUTH" in key):
+                continue
             columnNames.append(key)
         correlations = pd.DataFrame(columns = columnNames, index  = indices)
 
@@ -539,6 +546,8 @@ class NormalizedDataHandler:
             correlations.loc[prot1 + '_' + prot2, "groundtruth"] = float(spvalue)
 
             for key in self.data:
+                if("GROUNDTRUTH" in key):
+                    continue
                 data = self.data[key].copy()
                 data = data[['sample_id', 'ab_id', 'ab_count_normalized']]
                 spvalue = stats.spearmanr(data.loc[data.ab_id == prot1, ["ab_count_normalized"]], data.loc[data.ab_id == prot2, ["ab_count_normalized"]]).correlation
@@ -552,7 +561,7 @@ class NormalizedDataHandler:
         correlations = pd.concat([wantedCorrelations, correlations])
 
         ax= plt.subplot()
-        sns.heatmap(correlations, annot=False, annot_kws={"size": 5}, cmap="viridis", vmin = 0, vmax = 1, cbar_kws={"shrink": .70}) # font size
+        sns.heatmap(correlations, annot=False, annot_kws={"size": 5}, cmap="viridis", vmin = -1, vmax = 1, cbar_kws={"shrink": .70}) # font size
         # labels, title and ticks
         ax.set_ylabel('AB Correlations', fontsize = 10)
         ax.set_title('AB Correlations', fontsize = 10)
@@ -563,3 +572,89 @@ class NormalizedDataHandler:
         plt.tight_layout()
         plt.savefig(self.folder_path + "Overview/UnwantedCorrelationHeatmap.png", dpi=199)
         plt.close()
+
+    def __get_AB_mean_dataFrame(self, data):
+
+        batchIds = data["batch_id"].unique()
+        result = pd.DataFrame()
+        for batch in batchIds:
+            dataBatch = data[data.batch_id == batch]
+            dataBatchMeanAbCounts = dataBatch.groupby(['ab_id'])['ab_count_normalized'].mean().reset_index()
+            dataBatchMeanAbCounts.rename(columns={'ab_count_normalized' :'ab_count_mean'}, inplace=True)
+            dataBatchMeanAbCounts = dataBatchMeanAbCounts[['ab_id', 'ab_count_mean']]
+            dataBatchMeanAbCounts.set_index('ab_id', inplace = True)
+            result[batch] = dataBatchMeanAbCounts['ab_count_mean']
+
+        return(result)
+
+    def validate_batch_effect(self):
+
+        #for every batch
+        normMethodsBatchDiff = pd.DataFrame()
+        for key in self.data:
+            if("GROUNDTRUTH" in key):
+                continue
+            if("SIMULATED" in key):
+                continue
+            batchDifferenceDict = {}
+            data = self.data[key].copy()
+            meanData = self.__get_AB_mean_dataFrame(data)
+            batches = meanData.columns.to_list()
+            for batch_1, batch_2 in itertools.combinations(batches, 2):
+                mse = sklearn.metrics.mean_squared_error(meanData[batch_1], meanData[batch_2])
+                rmsd = math.sqrt(mse)
+                batchDifferenceDict[str(batch_1) + "_" + str(batch_2)] = rmsd            
+            result = pd.DataFrame(batchDifferenceDict.items(), columns=['batch_correlation', 'rmsd_value'])
+            normMethodsBatchDiff[key] = result["rmsd_value"]
+
+        ax= plt.subplot()
+        ax = normMethodsBatchDiff.plot.bar(rot=0)
+        # labels, title and ticks
+        ax.set_ylabel('RMSD of mean AB count between batches', fontsize = 10)
+        ax.set_title('Batch effect', fontsize = 10)
+        plt.xticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
+        plt.yticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 6)
+        plt.tight_layout()
+        plt.savefig(self.folder_path + "Overview/BatchEffect.png", dpi=199)
+        plt.close()
+        
+    def validate_treatment_effect(self, diffExProteins):
+
+        treatmentProts = []
+        #get all diff proteins
+        for vec in diffExProteins:
+            treatmentProts.extend(vec)
+        
+        fig, axs = plt.subplots(len(self.data), len(treatmentProts),figsize=(17,12))
+        i = 0
+        for key in self.data:
+            data = self.data[key].copy()
+            data = data[data.ab_id.isin(treatmentProts)]
+            j = 0
+            for prot in treatmentProts:
+                dict = {}
+                dataTmp = data[data["ab_id"] == prot]
+                for condition in data.cluster_id.unique():
+                    condition = str(condition)
+                    dict[condition] = data.loc[data["cluster_id"] == condition, "ab_count_normalized"]
+                od = collections.OrderedDict(sorted(dict.items()))
+                axs[i, j].boxplot(od.values())
+                axs[i, j].set_xticklabels(od.keys(), size = '10')
+                axs[i, j].set_title(key + " " + prot, size = '12')
+
+                #add jitter
+                keyPos = 0
+                for key, value in od.items():
+                    y = value
+                    x = np.random.normal(keyPos + 1, 0.1, len(y))
+                    axs[i, j].scatter(x, y, alpha = 0.4, s = 0.2)
+                    keyPos = keyPos + 1
+                j = j + 1
+            i = i+1
+        plt.tight_layout()
+        plt.savefig(self.folder_path + "Overview/Treatment.png", dpi=199)
+        plt.close()
+
+
+
+
