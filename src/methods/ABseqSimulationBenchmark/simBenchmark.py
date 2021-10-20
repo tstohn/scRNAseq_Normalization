@@ -122,7 +122,7 @@ class Benchmark():
                 commandString = "python3 src/methods/GraphNormalization/main.py " + normOriginFilePath
                 subprocess.run([commandString], shell = True, check = True)
             else:
-                commandString = "Rscript --quiet /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv"
+                commandString = "Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv"
                 subprocess.run([commandString], shell = True, check = True)
         #move also ground truth into normalization folder
         groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH.tsv"
