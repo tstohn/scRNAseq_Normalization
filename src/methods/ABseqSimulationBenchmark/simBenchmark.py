@@ -51,6 +51,9 @@ class Parameters():
                 info = re.match(("datasets=(.*)"), line)
                 self.datasets = str(info[1])
 
+        if(self.datasets == ""):
+            print("WARNING: NO DIRECTORY FOR NORMALIZATION FILES GIVEN")
+
     def __init__(self, paramFile):
         self.__parseParameters(paramFile)
         self.__parseDatasetDir()
@@ -105,7 +108,6 @@ class Benchmark():
         simulationResultFilePath = simulationFilePath + simulatedFileName
 
         commandString = "cp " + simulationResultFilePath + " " + normOriginFilePath
-        print(commandString)
         subprocess.run([commandString], shell = True, check = True)
         
         #generate a ini file next to it
@@ -120,7 +122,7 @@ class Benchmark():
                 commandString = "python3 src/methods/GraphNormalization/main.py " + normOriginFilePath
                 subprocess.run([commandString], shell = True, check = True)
             else:
-                commandString = "/usr/local/bin/Rscript --quiet /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv"
+                commandString = "Rscript --quiet /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv"
                 subprocess.run([commandString], shell = True, check = True)
         #move also ground truth into normalization folder
         groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH.tsv"
