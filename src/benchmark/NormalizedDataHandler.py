@@ -5,6 +5,7 @@ from cv2 import rotate
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as pltCol
 from random import randint
 from scipy import stats
 import itertools
@@ -618,8 +619,23 @@ class NormalizedDataHandler:
         plt.savefig(self.folder_path + "Overview/BatchEffect.png", dpi=199)
         plt.close()
         
-    def validate_treatment_effect(self, diffExProteins):
+    #treatment conditions are enumerated from 0 to X
+    def __parseTreatmentConditionInfluence(self, diffExProteins, diffExFactors):
+        dict = {}
+        conditionId = 0
+        for cond in diffExProteins:
+            abId = 0
+            for abIdStr in cond:
+                #conditions are enumerated from 1
+                dict[(abIdStr, str(conditionId))] = diffExFactors[conditionId][abId]
+                abId = abId + 1
+            conditionId = conditionId + 1
 
+        return(dict)
+
+    def validate_treatment_effect(self, diffExProteins, diffExFactors):
+
+        abIdConditionToFactorMap = self.__parseTreatmentConditionInfluence(diffExProteins, diffExFactors)
         treatmentProts = []
         #get all diff proteins
         for vec in diffExProteins:
@@ -638,21 +654,42 @@ class NormalizedDataHandler:
                     condition = str(condition)
                     dict[condition] = data.loc[data["cluster_id"] == condition, "ab_count_normalized"]
                 od = collections.OrderedDict(sorted(dict.items()))
-                axs[i, j].boxplot(od.values())
+                box_plots = axs[i, j].boxplot(od.values(), patch_artist=True, showfliers=False)
                 axs[i, j].set_xticklabels(od.keys(), size = '10')
                 axs[i, j].set_title(key + " " + prot, size = '12')
 
+                pos = "green"
+                neg = "red"
+                non = ""
+                colList = []
+                for cond in od.keys():
+                    if((prot,cond) in abIdConditionToFactorMap):
+                        if(abIdConditionToFactorMap[(prot,cond)]>1):
+                            colList.append(pos)
+                        else:
+                            colList.append(neg)
+                    else:
+                        colList.append(non)
+                for b,box in enumerate(box_plots['boxes']):
+                    if(colList[b] == ""):
+                        color_with_alpha = pltCol.colorConverter.to_rgba("white", 0.0)
+                        box.set_facecolor(color_with_alpha)
+                        continue
+                    box.set_facecolor(colList[b])
+                    box.set_alpha(0.7)
+                    box.set_edgecolor("black")
+                #plt.setp(box1["boxes"], facecolor="red")
                 #add jitter
                 keyPos = 0
                 for key, value in od.items():
                     y = value
                     x = np.random.normal(keyPos + 1, 0.1, len(y))
-                    axs[i, j].scatter(x, y, alpha = 0.4, s = 0.2)
+                    #axs[i, j].scatter(x, y, alpha = 0.4, s = 0.2)
                     keyPos = keyPos + 1
                 j = j + 1
             i = i+1
         plt.tight_layout()
-        plt.savefig(self.folder_path + "Overview/Treatment.png", dpi=199)
+        plt.savefig(self.folder_path + "Overview/TreatmentWOOutliers.png", dpi=199)
         plt.close()
 
 

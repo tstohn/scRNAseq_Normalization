@@ -259,6 +259,8 @@ class SingleCellSimulation():
         
         #model each treatment with its own samples (except for the first one, that one stays uneffected)
         dataTreatment = data[data["sample_id"].isin(sampleIdList[0])]
+        #IMPORTANT: control treatment is called control, this is hard coded
+        #nad used again for benchmarking
         dataTreatment["cluster_id"] = "control"
         result.append(dataTreatment)
         for sampleIds in sampleIdList[1:]:
@@ -271,6 +273,8 @@ class SingleCellSimulation():
                 proteinId = self.parameters.diffExProteins[i][j]
                 dataTreatment.loc[dataTreatment["ab_id"] == proteinId, "ab_count"] *= value
                 j+=1
+            #IMPORTANT: treatments are enumerated from 0 to x, this is later again used when
+            #benchmarking the treatment effect
             dataTreatment["cluster_id"] = str(i)
             result.append(dataTreatment)
             i+=1
