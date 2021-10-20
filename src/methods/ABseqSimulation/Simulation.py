@@ -76,6 +76,8 @@ class Parameters():
     treatmentVector = None
     diffExProteins = None
     batchFactors=None
+    noiseIntrinsic=0.05
+    noiseExtrinsic=0.1
 
     proteinCorrelations = []
 
@@ -199,6 +201,12 @@ class Parameters():
             elif(str.startswith(line, "abDuplicateDisturbance=")):
                 info = re.match(("abDuplicateDisturbance=(.*)"), line)
                 self.abDuplicateDisturbance=float(info[1])
+            elif(str.startswith(line, "noiseIntrinsic")):
+                info = re.match(("noiseIntrinsic=(.*)"), line)
+                self.noiseIntrinsic = float(info[1].rstrip("\n"))
+            elif(str.startswith(line, "noiseExtrinsic")):
+                info = re.match(("noiseExtrinsic=(.*)"), line)
+                self.noiseExtrinsic = float(info[1].rstrip("\n"))
 
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
@@ -208,7 +216,7 @@ class SingleCellSimulation():
     """ PARAMETERS """
     parameters = None
     ab_sampled = None
-    output_dir = "bin/SIMULATIONS/"
+    output_dir = "./bin/SIMULATIONS/"
 
     """ MODELLED DATA """
     groundTruthData = None
@@ -308,17 +316,14 @@ class SingleCellSimulation():
     """ model libsize effect """
     def __insert_libsize_effect(self, data):
         print("Simulating different libsizes.")
-        result = []
-        sampleIdVector = (data["sample_id"].unique())
-        for sampleId in sampleIdVector:
-            n = random.uniform(self.parameters.libSize[0],self.parameters.libSize[1])
-            dataSample = data[data["sample_id"] == sampleId]
-            dataSample["ab_count"] = (n * dataSample["ab_count"])
-            dataSample["ab_count"] = dataSample["ab_count"].round(decimals = 0)
-            result.append(dataSample)
+        
+        perturbFrame = pd.DataFrame()
+        perturbFrame["sample_id"] = data["sample_id"].unique()
+        perturbFrame["factor"] = np.random.uniform(self.parameters.libSize[0],self.parameters.libSize[1], len(perturbFrame))
+        perturbDict = dict(zip(perturbFrame["sample_id"], perturbFrame["factor"]))
+        data["ab_count"] = data["ab_count"] * data["sample_id"].map(perturbDict)
 
-        concatedSamples = pd.concat(result)
-        return(concatedSamples)
+        return(data)
 
     """ model correlated proteins """
     def __insert_correlations_between_proteins(self, data):
@@ -476,6 +481,24 @@ class SingleCellSimulation():
         concatedBatches = pd.concat(result)
         return(concatedBatches)
 
+    def __perturb(self,data):
+
+        print("Adding random noise to data")
+
+        #cell instrinsic pertubation
+        randomVector = np.random.normal(1,self.parameters.noiseIntrinsic,len(data))
+        data["ab_count"] *= randomVector
+
+        #between cell pertubation
+        perturbFrame = pd.DataFrame()
+        perturbFrame["sample_id"] = data["sample_id"].unique()
+        perturbFrame["factor"] = np.random.normal(1,self.parameters.noiseExtrinsic,len(perturbFrame))
+        perturbDict = dict(zip(perturbFrame["sample_id"], perturbFrame["factor"]))
+        data["ab_count"] = data["ab_count"] * data["sample_id"].map(perturbDict)
+        data["ab_count"] = data["ab_count"].round(decimals = 0)
+
+        return(data)
+
     def __add_batch_effect_to_ground_truth(self, newData):
         self.groundTruthData = pd.merge(self.groundTruthData,newData[['sample_id','ab_id','batch_id']],on=['sample_id','ab_id'], how='left')
 
@@ -514,7 +537,8 @@ class SingleCellSimulation():
 
         #simulate PCR amplification and sequencing
         #sampling with replacement to simulate PCR amplification as well as missing out on reads during washing/ sequencing
-        tmp_simulatedData = self.__simulate_sequencing_binding_2(perturbedData)
+        #tmp_simulatedData = self.__simulate_sequencing_binding_2(perturbedData)
+        tmp_simulatedData = self.__perturb(perturbedData)
 
         self.simulatedData = tmp_simulatedData
 
