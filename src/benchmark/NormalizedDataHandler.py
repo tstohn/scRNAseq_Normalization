@@ -372,12 +372,18 @@ class NormalizedDataHandler:
         for key in self.data:
             if("GROUNDTRUTH" in key):
                 continue
+
             data = self.data[key].copy()
             #calculate same dataFrame and add GroundTruth to it
             normCorrelations = self.__calculate_all_spearman_correlations(data)
             normCorrelations.columns = ['index','SPvalues_norm', 'Pvalues_norm']
 
-            result = pd.merge(groundTruthCorrelations, normCorrelations, how="outer", on = "index")
+            #dropping nan values, important for e.g. subsampling
+            groundTruthCorrelations.dropna(subset = ["SPvalues"], inplace=True)
+            normCorrelations.dropna(subset = ["SPvalues_norm"], inplace=True)
+
+            result = pd.merge(groundTruthCorrelations, normCorrelations, how="inner", on = "index")
+
             #calculate the RMSD and safe it to RMSD matrix
             mse = sklearn.metrics.mean_squared_error(result.SPvalues, result.SPvalues_norm)
             rmsd = math.sqrt(mse)
