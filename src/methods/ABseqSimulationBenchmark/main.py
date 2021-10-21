@@ -50,6 +50,8 @@ def main():
 
     #run this as threads
     pool_size = args.t
+    os.environ['OPENBLAS_NUM_THREADS'] = str(pool_size)
+
     pool = Pool(pool_size)
 
     for ini in iniFileList:
