@@ -11,12 +11,9 @@ from dataclasses import dataclass
 import subprocess
 import os
 import shutil
-
-def removesuffix(word, suffix):
-    if(word.endswith(suffix)):
-        wordNew = word[:-len(suffix)]
-        word = wordNew
-    return(word)
+import sys
+sys.path.append('./src/methods/ToolBox')
+from functions import *
 
 class Parameters():
 

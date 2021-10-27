@@ -50,6 +50,7 @@ def main():
 
     #run this as threads
     pool_size = args.t
+    #necessay for pool to work with number of threads on linux: Issue: https://github.com/numpy/numpy/issues/14474
     os.environ['OPENBLAS_NUM_THREADS'] = str(pool_size)
 
     pool = Pool(pool_size)

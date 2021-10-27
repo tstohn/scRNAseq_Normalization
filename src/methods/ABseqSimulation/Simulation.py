@@ -10,6 +10,8 @@ import regex as re
 from dataclasses import dataclass
 import sys
 import os
+sys.path.append('./src/methods/ToolBox')
+from functions import *
 
 def LINE():
     return sys._getframe(1).f_lineno
@@ -87,7 +89,7 @@ class Parameters():
     """
 
     def __parseParameters(self, paramFile):
-        self.simulationName = os.path.basename(paramFile.rstrip('.ini'))
+        self.simulationName = os.path.basename(removesuffix(paramFile, '.ini'))
         file = open(paramFile, "r")
         line = file.readline()
         while line:
