@@ -105,6 +105,8 @@ class Benchmark():
         simulationResultFilePath = simulationFilePath + simulatedFileName
 
         commandString = "cp " + simulationResultFilePath + " " + normOriginFilePath
+
+        print("RUN SIMULATION")
         subprocess.run([commandString], shell = True, check = True)
         
         #generate a ini file next to it

@@ -624,6 +624,8 @@ class NormalizedDataHandler:
         ax.set_title('Batch effect', fontsize = 10)
         plt.xticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
         plt.yticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 6)
+        plt.xlabel('RMSD between all combinations of batches', fontsize = 10)
+
         plt.tight_layout()
         plt.savefig(self.folder_path + "Overview/BatchEffect.png", dpi=199)
         plt.close()
@@ -636,7 +638,7 @@ class NormalizedDataHandler:
             abId = 0
             for abIdStr in cond:
                 #conditions are enumerated from 1
-                dict[(abIdStr, str(conditionId))] = diffExFactors[conditionId][abId]
+                dict[(abIdStr, "cluster_" + str(conditionId))] = diffExFactors[conditionId][abId]
                 abId = abId + 1
             conditionId = conditionId + 1
 

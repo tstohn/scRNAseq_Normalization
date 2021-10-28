@@ -285,7 +285,7 @@ class SingleCellSimulation():
                 j+=1
             #IMPORTANT: treatments are enumerated from 0 to x, this is later again used when
             #benchmarking the treatment effect
-            dataTreatment["cluster_id"] = str(i)
+            dataTreatment["cluster_id"] = "cluster_" + str(i)
             result.append(dataTreatment)
             i+=1
         concatedTreatments = pd.concat(result)
@@ -308,7 +308,7 @@ class SingleCellSimulation():
         for sampleIds in sampleIdList:
             dataBatch = data[data["sample_id"].isin(sampleIds)]
             dataBatch["ab_count"] *= self.parameters.batchFactors[i]
-            dataBatch["batch_id"] = str(i)
+            dataBatch["batch_id"] = "batch_" + str(i)
             result.append(dataBatch)
             i+=1
 
