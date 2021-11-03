@@ -485,7 +485,7 @@ class SingleCellSimulation():
 
     def __perturb(self,data):
 
-        print("Adding random noise to data")
+        printToTerminalOnce("\tAdding random noise to data")
 
         #cell instrinsic pertubation
         randomVector = np.random.normal(1,self.parameters.noiseIntrinsic,len(data))
@@ -549,7 +549,7 @@ class SingleCellSimulation():
     """ SAVE THE DATA """
     def save_data(self):
         #safe data
-        print("Safe Data")
+        printToTerminalOnce("\tSafe Data")
 
         if not os.path.isdir(self.output_dir):
             os.makedirs(self.output_dir)

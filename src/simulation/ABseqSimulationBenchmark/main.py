@@ -9,6 +9,8 @@ from datetime import datetime
 import shutil
 import argparse
 from multiprocessing.pool import ThreadPool as Pool
+sys.path.append('./src/methods/ToolBox')
+from functions import *
 
 def parse_args():
 
@@ -20,20 +22,25 @@ def parse_args():
     args = parser.parse_args()
     return(args)
 
-def runSimulation(ini, newSimulationDir):
+def runSimulation(ini, newSimulationDir, stdoutFile):
     try:
         param = Parameters(ini)
-        benchmark = Benchmark(param)
+        benchmark = Benchmark(param, stdoutFile)
         benchmark.run()
         benchmark.moveIntoOneFolder(newSimulationDir)
+        benchmark.moveIntoOneFolder(stdoutFile)
     except:
-        print("Could not run Benchmark on " + ini)
+        printToTerminalOnce("Could not run Benchmark on " + ini)
 
 def main():
 
     if(len(sys.argv) < 2):
         print("ERROR: use script with \'python3 main.py <folder_with_simulation.inis>\'\n")
         exit(1)
+    stdoutFile = 'LogFile.txt'
+    outfile = open(stdoutFile, 'w')
+    sys.stdout = outfile
+    sys.stderr = outfile
 
     args = parse_args()
     parameterFolder = args.dir
@@ -56,10 +63,11 @@ def main():
     pool = Pool(pool_size)
 
     for ini in iniFileList:
-        pool.apply_async(runSimulation, args=(ini, newSimulationDir))
+        pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile))
             
     pool.close()
     pool.join()
-
+    outfile.close()
+    
 if __name__ == '__main__':
     main()

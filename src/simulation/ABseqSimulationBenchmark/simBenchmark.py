@@ -49,7 +49,7 @@ class Parameters():
                 self.datasets = str(info[1])
 
         if(self.datasets == ""):
-            print("WARNING: NO DIRECTORY FOR NORMALIZATION FILES GIVEN")
+            printToTerminalOnce("WARNING: NO DIRECTORY FOR NORMALIZATION FILES GIVEN")
 
     def __init__(self, paramFile):
         self.__parseParameters(paramFile)
@@ -59,8 +59,9 @@ class Benchmark():
 
     parameters=None
 
-    def __init__(self, parameters):
+    def __init__(self, parameters, stdoutFile = ""):
         self.parameters = parameters
+        self.stdout = stdoutFile
 
     def __generateNormalizationIni(self, normOriginFilePath):
         iniFile = removesuffix(normOriginFilePath,'.tsv') + ".ini"
@@ -92,8 +93,9 @@ class Benchmark():
         subprocess.run(["./source", "scRNAseq/bin/activate"], shell=True)
 
         #call simulations
-        subprocess.run(["python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile], shell = True, check = True)
-        
+        printToTerminalOnce("RUN SIMULATION")
+        subprocess.run(["python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
+
         #copy simulations into normnalization folder:
         #from bin/SIMMULATIONS to datasets/
         simulationFilePath = "./bin/SIMULATIONS/"
@@ -105,30 +107,29 @@ class Benchmark():
         simulationResultFilePath = simulationFilePath + simulatedFileName
 
         commandString = "cp " + simulationResultFilePath + " " + normOriginFilePath
-
-        print("RUN SIMULATION")
         subprocess.run([commandString], shell = True, check = True)
-        
+
         #generate a ini file next to it
         self.__generateNormalizationIni(normOriginFilePath)
 
         #run normalizations
+        printToTerminalOnce("RUN NORMALIZATION")
         if( not self.parameters.normMethods ):
-            print("No normalization methods given!")
+            printToTerminalOnce("No normalization methods given!")
             return
         for norm in self.parameters.normMethods:
             if(norm == "GRAPH"):
-                commandString = "python3 src/methods/GraphNormalization/main.py " + normOriginFilePath
+                commandString = "python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " >> " + self.stdout + " 2>&1"
                 try:
                     subprocess.run([commandString], shell = True, check = True)
                 except:
-                    print("ERROR: Normalization method " + norm + " failed")
+                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed")
             else:
-                commandString = "Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv"
+                commandString = "Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
                 try:
                     subprocess.run([commandString], shell = True, check = True)
                 except:
-                    print("ERROR: Normalization method " + norm + " failed")
+                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed")
         #move also ground truth into normalization folder
         groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH.tsv"
         groundTruthResultFilePath = simulationFilePath + groundTruthName
@@ -161,11 +162,11 @@ class Benchmark():
             simulatedDataStream.write(dataSimulated)
             simulatedDataStream.close()
         except:
-            print("ERROR for moving simulated and groundTruth data")
+            printToTerminalOnce("ERROR for moving simulated and groundTruth data")
 
         #run normalization benchmark
         normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
-        benchmarkCommand = "python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " " + normResultFilePath
+        benchmarkCommand = "python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " " + normResultFilePath
         subprocess.run([benchmarkCommand], shell = True, check = True)
 
     #every run of a simulation -> normalizaitons -> benchmark results in a folder in bin/BENCHMARK

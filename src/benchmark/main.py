@@ -7,8 +7,10 @@ import argparse
 
 sys.path.append('./src/simulation/ABseqSimulation')
 import Simulation
+sys.path.append('./src/methods/ToolBox')
+from functions import *
 
-def parse_args(argv):
+def parse_args():
 
     parser = argparse.ArgumentParser(description='Benchmarking all Normalization methods in a directory.')
     
@@ -19,6 +21,8 @@ def parse_args(argv):
                         type=str)
 
     parser.add_argument('--filterAbTypeForSpearmanCorrelation', help='run spearman correlation additionally for a subset of the data, when looking only at specific protein types',
+                        type=str)
+    parser.add_argument('--stdout', help='write unimportant messages to a file', default="",
                         type=str)
     parser.add_argument('dir', metavar='DIR', type=str)
 
@@ -37,22 +41,21 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
     try:
         benchmark.run_treatment_classification()
     except:
-       print("Treatment classification failed")
+       printToTerminalOnce("Treatment classification failed")
 
     if(groundtruth):
         params = Simulation.Parameters(iniFile)
 
-
         try:
             benchmark.ab_spearman_correlation(groundtruth) # make RMSD of correlation differences => barplot
         except:
-            print("Spwearman correlation failed")
+            printToTerminalOnce("Spearman correlation failed")
         #RMSD of fold cahnges between total AB counts per sample 
         #(idea: insample fold cahnges between dofferent protein counts stay the same after normalization, only the different samples are scaled)
         try:
             benchmark.validate_normalizedData_against_groundTruth()
         except:
-            print("RMSD between ABcount to min ABcount failed")
+            printToTerminalOnce("RMSD between ABcount to min ABcount failed")
 
 
         #calculate detected correlations of proteins - check we have wanted and not unwanted corr
@@ -60,13 +63,13 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
         try:
             benchmark.validate_correlations(params.proteinCorrelations)
         except:
-            print("Detection of wanted Correlation failed")
+            printToTerminalOnce("Detection of wanted Correlation failed")
 
         if(params.diffExProteins != None):
             try:
                 benchmark.validate_treatment_effect(params.diffExProteins, params.treatmentVector)
             except:
-                print("Treatment Effect validation failed")
+                printToTerminalOnce("Treatment Effect validation failed")
 
         #calculate detected treatment effect - check we have wanted treatment effect and not unwanted
         if(params.batchFactors != None):
@@ -74,29 +77,36 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
             try:
                 benchmark.validate_batch_effect()
             except:
-                print("Batch Eff failed")
+                printToTerminalOnce("Batch Eff failed")
 
     #additional correlation analysis for a subset od the data
     if(spearmanFilter):
         try:
             benchmark.ab_spearman_correlation(groundtruth, spearmanFilter)
         except:
-            print("Spearman Correlelation for proteins of type " + spearmanFilter + " failed")
+            printToTerminalOnce("Spearman Correlelation for proteins of type " + spearmanFilter + " failed")
 
 def main():
     if(len(sys.argv) < 2):
         print("ERROR: use script with <python3 benchmark.py [directory of several datasets || directory with normalized files of one dataset]>\n")
         exit(1)
-    print("Running benchmark of normalized scRNAseq data from: "+sys.argv[len(sys.argv)-1]+"\n")
 
-    args = parse_args(sys.argv)
+    args = parse_args()
+    if(args.stdout != ""):
+        outfile = open(args.stdout, 'a+')
+        sys.stdout = outfile
+        sys.stderr = outfile
 
+
+    printToTerminalOnce("Running benchmark of normalized scRNAseq data from: "+sys.argv[len(sys.argv)-1]+"\n")
     datasets = load_datasets_for_benchmark(args.dir)
-    print("Found " + str(len(datasets)) + " datasets to run normalization benchmark on")
+    printToTerminalOnce("Found " + str(len(datasets)) + " datasets to run normalization benchmark on")
 
     #make classifications
     for dataset in datasets:
         make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.iniFile)
+
+    outfile.close()
 
 if __name__ == '__main__':
     main()

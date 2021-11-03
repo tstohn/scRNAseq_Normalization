@@ -28,6 +28,10 @@ import threading
 
 from alibi_detect.cd import MMDDrift #MMD
 
+import sys
+sys.path.append('./src/methods/ToolBox')
+from functions import *
+
 #class handling the normalized data (classifies, tsne visualisation)
 class NormalizedDataHandler:
 
@@ -155,7 +159,7 @@ class NormalizedDataHandler:
         plt.savefig(self.folder_path + "/Classification/ConfusionMatrices/" + data_name + method_string + "_CFMatrix.png", dpi=199)
         plt.close()
 
-        print('%s => %s Accuracy[%s] : %.3f (%.3f)' % (self.dataset_name, method_string, data_name, np.mean(global_scores), np.std(global_scores)))
+        printToTerminalOnce('%s => %s Accuracy[%s] : %.3f (%.3f)' % (self.dataset_name, method_string, data_name, np.mean(global_scores), np.std(global_scores)))
         self.results.write(data_name + "\t" + method_string + "\t" + str(round(np.mean(scores), 2)) + "\t" + str(round(np.std(scores), 2)) + "\n")
 
         return([np.mean(scores),np.std(scores)])
@@ -344,12 +348,12 @@ class NormalizedDataHandler:
         plt.figure(figsize=(16,10))
         lengend_labels = []
         for key in self.data:
+            print(key)
             data = self.data[key].copy()
 
             #speacial line for a data set where phospho proteins were excluded due to expected correlations
             if(filter != ""):
                 data = data[data['ab_type'] == filter]
-
             spearmanValues = self.__calculate_all_spearman_correlations(data)
             sp_mean = np.mean(spearmanValues.SPvalues)
             p_mean = np.mean(spearmanValues.Pvalues)
@@ -357,7 +361,7 @@ class NormalizedDataHandler:
             self.sp_results.write(key + "\t"+ str(round(sp_mean,4)) + "\t" + str(round(p_mean,4)) + "\n")
             sns.distplot(x=spearmanValues.SPvalues, hist=False, kde=True)
             lengend_labels.append(key)
-   
+
         plt.legend(labels=lengend_labels)
         plt.savefig(self.folder_path +  "SpearmanCorrelations/spearman_correlations_" + filter + ".png", dpi=199)
         plt.close()
@@ -400,7 +404,7 @@ class NormalizedDataHandler:
         plt.savefig(self.folder_path + "Overview/CorrelationRMSD.png", dpi=199)
         plt.close()
 
-    def ab_spearman_correlation(self,groundtruth = False, filter = ""):
+    def ab_spearman_correlation(self, groundtruth = False, filter = ""):
         #plot graph of spearman correlations
         self.ab_spearman_correlation_graph(filter)
 
