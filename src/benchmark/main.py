@@ -5,7 +5,7 @@ from datasetParsingFunctions import load_datasets_for_benchmark
 from NormalizedDataHandler import NormalizedDataHandler
 import argparse
 
-sys.path.append('./src/methods/ABseqSimulation')
+sys.path.append('./src/simulation/ABseqSimulation')
 import Simulation
 
 def parse_args(argv):

@@ -19,7 +19,7 @@ make graph_norm:
 benchmark:
 	mkdir -p bin/BENCHMARKED_DATASETS
 	. ./scRNAseq/bin/activate && \
-	python3 src/normBenchmark/benchmark.py bin/NORMALIZED_DATASETS
+	python3 src/benchmark/main.py bin/NORMALIZED_DATASETS
 
 make all:
 	make normalization
@@ -39,7 +39,7 @@ install_requirements:
 
 
 test_simulation:
-	python3 ./src/methods/ABseqSimulation/main.py ./examples/simulation.ini
+	python3 ./src/simulation/ABseqSimulation/main.py ./examples/simulation.ini
 
 test_simulation_benchmark:
-	python3 ./src/methods/ABseqSimulationBenchmark/main.py ../datasets/Simulations/
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./test/data/SimulationFolder/

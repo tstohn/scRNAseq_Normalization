@@ -92,7 +92,7 @@ class Benchmark():
         subprocess.run(["./source", "scRNAseq/bin/activate"], shell=True)
 
         #call simulations
-        subprocess.run(["python3 ./src/methods/ABseqSimulation/main.py " + self.parameters.iniFile], shell = True, check = True)
+        subprocess.run(["python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile], shell = True, check = True)
         
         #copy simulations into normnalization folder:
         #from bin/SIMMULATIONS to datasets/
@@ -165,7 +165,7 @@ class Benchmark():
 
         #run normalization benchmark
         normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
-        benchmarkCommand = "python3 src/benchmark/normBenchmark.py --groundtruth --iniFile " + self.parameters.iniFile + " " + normResultFilePath
+        benchmarkCommand = "python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " " + normResultFilePath
         subprocess.run([benchmarkCommand], shell = True, check = True)
 
     #every run of a simulation -> normalizaitons -> benchmark results in a folder in bin/BENCHMARK
