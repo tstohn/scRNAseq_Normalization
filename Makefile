@@ -42,4 +42,4 @@ test_simulation:
 	python3 ./src/simulation/ABseqSimulation/main.py ./examples/simulation.ini
 
 test_simulation_benchmark:
-	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./test/data/SimulationFolder/
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py --t 2 ./test/data/SimulationFolder/
