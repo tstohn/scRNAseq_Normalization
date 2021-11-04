@@ -4,6 +4,7 @@ import sys
 from datasetParsingFunctions import load_datasets_for_benchmark
 from NormalizedDataHandler import NormalizedDataHandler
 import argparse
+import os 
 
 sys.path.append('./src/simulation/ABseqSimulation')
 import Simulation
@@ -24,6 +25,8 @@ def parse_args():
                         type=str)
     parser.add_argument('--stdout', help='write unimportant messages to a file', default="",
                         type=str)
+    parser.add_argument('--t', help='threads',
+                        type=int, default=1)
     parser.add_argument('dir', metavar='DIR', type=str)
 
     args = parser.parse_args()
@@ -96,7 +99,9 @@ def main():
         outfile = open(args.stdout, 'a+')
         sys.stdout = outfile
         sys.stderr = outfile
-
+    threads = args.t
+    #necessay for pool to work with number of threads on linux: Issue: https://github.com/numpy/numpy/issues/14474
+    os.environ['OPENBLAS_NUM_THREADS'] = str(threads)
 
     printToTerminalOnce("Running benchmark of normalized scRNAseq data from: "+sys.argv[len(sys.argv)-1]+"\n")
     datasets = load_datasets_for_benchmark(args.dir)

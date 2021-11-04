@@ -94,7 +94,7 @@ class Benchmark():
 
         #call simulations
         printToTerminalOnce("RUN SIMULATION")
-        subprocess.run(["OMP_NUM_THREADS=1 python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
+        subprocess.run(["OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
 
         #copy simulations into normnalization folder:
         #from bin/SIMMULATIONS to datasets/
@@ -119,7 +119,7 @@ class Benchmark():
             return
         for norm in self.parameters.normMethods:
             if(norm == "GRAPH"):
-                commandString = "OMP_NUM_THREADS=1 python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " >> " + self.stdout + " 2>&1"
+                commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " >> " + self.stdout + " 2>&1"
                 try:
                     subprocess.run([commandString], shell = True, check = True)
                 except:
@@ -166,7 +166,7 @@ class Benchmark():
 
         #run normalization benchmark
         normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
-        benchmarkCommand = "OMP_NUM_THREADS=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " " + normResultFilePath
+        benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1 " + normResultFilePath
         subprocess.run([benchmarkCommand], shell = True, check = True)
 
     #every run of a simulation -> normalizaitons -> benchmark results in a folder in bin/BENCHMARK
