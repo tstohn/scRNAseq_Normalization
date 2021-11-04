@@ -1,4 +1,3 @@
-import numpy as np
 import sys
 from simBenchmark import Parameters,Benchmark
 from os import listdir
@@ -43,6 +42,12 @@ def main():
     sys.stderr = outfile
 
     args = parse_args()
+    #set thread limit before importing numpy
+    pool_size = args.t
+    #necessay for pool to work with number of threads on linux: Issue: https://github.com/numpy/numpy/issues/14474
+    os.environ['OPENBLAS_NUM_THREADS'] = str(pool_size)
+    import numpy as np
+
     parameterFolder = args.dir
 
     #list all ini files
@@ -56,12 +61,7 @@ def main():
     os.makedirs(newSimulationDir)
 
     #run this as threads
-    pool_size = args.t
-    #necessay for pool to work with number of threads on linux: Issue: https://github.com/numpy/numpy/issues/14474
-    os.environ['OPENBLAS_NUM_THREADS'] = str(pool_size)
-
     pool = Pool(pool_size)
-
     for ini in iniFileList:
         pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile))
             
