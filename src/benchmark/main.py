@@ -44,7 +44,7 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
     try:
         benchmark.run_treatment_classification()
     except:
-       printToTerminalOnce("Treatment classification failed")
+       printToTerminalOnce("\n ERROR: Treatment classification failed\n")
 
     if(groundtruth):
         params = Simulation.Parameters(iniFile)
@@ -52,13 +52,13 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
         try:
             benchmark.ab_spearman_correlation(groundtruth) # make RMSD of correlation differences => barplot
         except:
-            printToTerminalOnce("Spearman correlation failed")
+            printToTerminalOnce("\n ERROR: Spearman correlation failed\n")
         #RMSD of fold cahnges between total AB counts per sample 
         #(idea: insample fold cahnges between dofferent protein counts stay the same after normalization, only the different samples are scaled)
         try:
             benchmark.validate_normalizedData_against_groundTruth()
         except:
-            printToTerminalOnce("RMSD between ABcount to min ABcount failed")
+            printToTerminalOnce("\n ERROR: RMSD between ABcount to min ABcount failed\n")
 
 
         #calculate detected correlations of proteins - check we have wanted and not unwanted corr
@@ -66,13 +66,13 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
         try:
             benchmark.validate_correlations(params.proteinCorrelations)
         except:
-            printToTerminalOnce("Detection of wanted Correlation failed")
+            printToTerminalOnce("\n ERROR: Detection of wanted Correlation failed\n")
 
         if(params.diffExProteins != None):
             try:
                 benchmark.validate_treatment_effect(params.diffExProteins, params.treatmentVector)
             except:
-                printToTerminalOnce("Treatment Effect validation failed")
+                printToTerminalOnce("\n ERROR: Treatment Effect validation failed\n")
 
         #calculate detected treatment effect - check we have wanted treatment effect and not unwanted
         if(params.batchFactors != None):
@@ -80,14 +80,14 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
             try:
                 benchmark.validate_batch_effect()
             except:
-                printToTerminalOnce("Batch Eff failed")
+                printToTerminalOnce("\n ERROR: Batch Eff failed\n")
 
     #additional correlation analysis for a subset od the data
     if(spearmanFilter):
         try:
             benchmark.ab_spearman_correlation(groundtruth, spearmanFilter)
         except:
-            printToTerminalOnce("Spearman Correlelation for proteins of type " + spearmanFilter + " failed")
+            printToTerminalOnce("\n ERROR: Spearman Correlelation for proteins of type " + spearmanFilter + " failed\n")
 
 def main():
     if(len(sys.argv) < 2):

@@ -29,7 +29,7 @@ def runSimulation(ini, newSimulationDir, stdoutFile):
         benchmark.moveIntoOneFolder(newSimulationDir)
         benchmark.moveIntoOneFolder(stdoutFile)
     except:
-        printToTerminalOnce("Could not run Benchmark on " + ini)
+        printToTerminalOnce("\n ERROR: Could not run Benchmark on " + ini + "\n")
 
 def main():
 

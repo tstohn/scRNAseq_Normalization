@@ -327,6 +327,8 @@ class SingleCellSimulation():
 
         return(data)
 
+    def __correlate_proteins():
+
     """ model correlated proteins """
     def __insert_correlations_between_proteins(self, data):
         #sort data first according to sample
