@@ -572,7 +572,7 @@ class NormalizedDataHandler:
         correlations = pd.concat([wantedCorrelations, correlations])
 
         ax= plt.subplot()
-        sns.heatmap(correlations, annot=False, annot_kws={"size": 5}, cmap="viridis", vmin = -1, vmax = 1, cbar_kws={"shrink": .70}) # font size
+        sns.heatmap(correlations, annot=False, annot_kws={"size": 5}, cmap="bwr", vmin = -1, vmax = 1, cbar_kws={"shrink": .70}) # font size
         # labels, title and ticks
         ax.set_ylabel('AB Correlations', fontsize = 10)
         ax.set_title('AB Correlations', fontsize = 10)

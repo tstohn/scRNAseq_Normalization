@@ -1,4 +1,5 @@
 from dataclasses import replace
+from turtle import shape
 from scipy.stats import nbinom
 import re
 import numpy as np
@@ -12,6 +13,7 @@ import sys
 import os
 sys.path.append('./src/methods/ToolBox')
 from functions import *
+from scipy.linalg import eigh, cholesky
 
 def LINE():
     return sys._getframe(1).f_lineno
@@ -53,13 +55,14 @@ class Parameters():
         prot1: int
         prot2: int
         positiveCorrelation: bool
-        factor: int
+        factor: float
 
     #incubation time is considered constant for now
     #antibody count is not considered for now: in sc IDseq constant AB concentration was used for all targets (0.1myg/ml over night)
     #biological variation matrix
     #technical variation matrix
     ProteinLevel = namedtuple('ProteinLevel', ['start', 'end', 'number'])
+    ProteinDist = namedtuple('proteinDist',['mu','size'])
 
     """ SIMULATION Parameters """
     simulationName = ""
@@ -82,6 +85,7 @@ class Parameters():
     noiseExtrinsic=0.1
 
     proteinCorrelations = []
+    proteinDistributions = {}
 
     """ PARAMETERS
         rangeVector: a vector of quadruples(range, number, mean, std) for Abs of different distributions
@@ -199,6 +203,8 @@ class Parameters():
                 i = 0
                 for factor in info:
                     self.proteinCorrelations[i].factor = float(factor)
+                    if(self.proteinCorrelations[i].positiveCorrelation == False):
+                        self.proteinCorrelations[i].factor = self.proteinCorrelations[i].factor * -1
                     i+=1
             elif(str.startswith(line, "abDuplicateDisturbance=")):
                 info = re.match(("abDuplicateDisturbance=(.*)"), line)
@@ -250,6 +256,9 @@ class SingleCellSimulation():
                     proteinCountMatrix[abName] = proteinCountVector
 
                 proteinCount +=1
+
+                proteinDist = self.parameters.ProteinDist(mu, size)
+                self.parameters.proteinDistributions[abName] = proteinDist
         
         proteinCountMatrix = proteinCountMatrix.reset_index().rename(columns={ 'index' : 'sample_id'})
         proteinCountMatrix = proteinCountMatrix.melt(id_vars = ["sample_id"], var_name="ab_id", value_name="ab_count")
@@ -327,7 +336,95 @@ class SingleCellSimulation():
 
         return(data)
 
-    def __correlate_proteins():
+    def __covariance(self, x, y, corr):
+        
+        sdX = np.std(x)
+        sdY = np.std(y)
+        sdProduct = sdX * sdY
+        
+        cov = corr * sdProduct
+        return cov
+
+    def __calc_c(self, x_previous, y_previous, corr):
+        #make covariance matrix
+        covM = np.array([
+                            [np.var(x_previous), self.__covariance(x_previous, y_previous, corr)],
+                            [self.__covariance(x_previous, y_previous, corr), np.var(y_previous)]
+                        ], dtype = float)
+        printToTerminalOnce("COVM")
+        printToTerminalOnce(corr)
+        printToTerminalOnce(covM)
+        #calc cholevsky decomposition
+        #c = cholesky(covM, lower=True)
+        evals, evecs = eigh(covM)
+        c = np.dot(evecs, np.diag(np.sqrt(evals)))
+        return(c)
+
+    #generate correlated counts by the help of the cholevski method
+    def __correlate_proteins(self, data, prot1, prot2, corr):
+        
+        x_previous = np.array(data.loc[data["ab_id"] == prot1,"ab_count"])
+        y_previous = np.array(data.loc[data["ab_id"] == prot2,"ab_count"])
+        
+        x_previous = np.random.normal(np.mean(x_previous), 0.1*np.std(x_previous), len(x_previous))
+        y_previous = np.random.normal(np.mean(y_previous), 0.1*np.std(y_previous), len(y_previous))
+        #x_previous[x_previous<0] = 0
+        #y_previous[y_previous<0] = 0
+        #printToTerminalOnce(" NEW VALUES FOR SIMLUATION")
+        #printToTerminalOnce(x_previous)
+        #c = self.__calc_c(x_previous, y_previous, corr)
+
+        #draw again from distriobution, in case Eigenvalues r negative leading to nans in c
+        #while(np.isnan(c).any()):
+            #dist1 = self.parameters.proteinDistributions[prot1]
+        #    dist2 = self.parameters.proteinDistributions[prot2]
+
+        #    dist = ProteinCountDistribution(self.parameters.CellNumber, dist2.mu, dist2.size)
+        #    proteinCountVector = dist.distributionValues()
+        #    y_previous = np.array(proteinCountVector)
+        #    c = self.__calc_c(x_previous, y_previous, corr)
+
+        covM = np.array([
+                            [np.var(x_previous), self.__covariance(x_previous, y_previous, corr)],
+                            [self.__covariance(x_previous, y_previous, corr), np.var(y_previous)]
+                        ], dtype = float)
+        means = [x_previous.mean(), y_previous.mean()]  
+        values = np.random.multivariate_normal(means, covM, len(x_previous)).T
+
+        oldValues = np.array([values[0], values[1]])
+
+
+
+        #generating negbinom and map to same idnex - to keep the same rank
+        dataFrame = pd.DataFrame({'X':values[0], 'Y':values[1]})
+        dataFrame['Idx'] = np.arange(len(dataFrame))
+        
+        dist1 = self.parameters.proteinDistributions[prot1]
+        dist2 = self.parameters.proteinDistributions[prot2]
+        distX = ProteinCountDistribution(self.parameters.CellNumber, dist1.mu, dist1.size)
+        distY = ProteinCountDistribution(self.parameters.CellNumber, dist2.mu, dist2.size)
+        proteinCountVectorX = distX.distributionValues()
+        proteinCountVectorY = distY.distributionValues()
+        negBinomX = np.sort(proteinCountVectorX)
+        negBinomY = np.sort(proteinCountVectorY)
+
+        dataFrameSortX = dataFrame.sort_values(by=['X'])
+        dataFrameSortX['Xnb'] = negBinomX
+        dataFrameSortY = dataFrameSortX.sort_values(by=['Y'])
+        dataFrameSortY['Ynb'] = negBinomY
+
+        newData = dataFrameSortY.sort_values(by=['Idx'])
+        oldValues = np.array([newData['Xnb'], newData['Ynb']])
+        #retunr the before set old values in same format
+
+
+
+        printToTerminalOnce("     OLD VALUES    \n")
+
+        printToTerminalOnce(oldValues)
+        #correlated random variables
+
+        return(oldValues)
 
     """ model correlated proteins """
     def __insert_correlations_between_proteins(self, data):
@@ -337,12 +434,13 @@ class SingleCellSimulation():
         data = data.sort_values(by=['sample_id'])
 
         for corr in self.parameters.proteinCorrelations:
-            if(corr.positiveCorrelation):
-                #origional negbinom distribution + factor times dependant protein count
-                data.loc[data["ab_id"] == corr.prot2,"ab_count"] += np.array(data.loc[data["ab_id"] == corr.prot1,"ab_count"]) * corr.factor
-            else:
-                #origional negbinom dist - factor times dependant protein count (be aware: corr.factor is negative, so the whoel value is ADDED to old score)
-                data.loc[data["ab_id"] == corr.prot2,"ab_count"] += (np.array(data.loc[data["ab_id"] == corr.prot1,"ab_count"]) * corr.factor)
+            #origional negbinom distribution + factor times dependant protein count
+            newCorrelatedValues = self.__correlate_proteins(data,
+                                                            corr.prot1,
+                                                            corr.prot2, 
+                                                            corr.factor)
+            data.loc[data["ab_id"] == corr.prot1,"ab_count"] = newCorrelatedValues[0,:].copy()
+            data.loc[data["ab_id"] == corr.prot2,"ab_count"] = newCorrelatedValues[1,:].copy()
 
         data.loc[data["ab_count"] < 0,"ab_count"] = 0
 
@@ -515,10 +613,10 @@ class SingleCellSimulation():
         #generate ground truth of the protein levels in each cell
         self.__generateGroundTruth(self.parameters)
         #add additional features into ground truth data
-        if(not (self.parameters.treatmentVector is None)):
-            self.__insert_treatment_effect(self.groundTruthData)
         if(len(self.parameters.proteinCorrelations) > 0):
             self.__insert_correlations_between_proteins(self.groundTruthData)
+        if(not (self.parameters.treatmentVector is None)):
+            self.__insert_treatment_effect(self.groundTruthData)
 
         #add additional data pertubations
         perturbedData = self.groundTruthData.copy(deep=True)
