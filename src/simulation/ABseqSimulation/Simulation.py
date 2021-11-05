@@ -345,45 +345,15 @@ class SingleCellSimulation():
         cov = corr * sdProduct
         return cov
 
-    def __calc_c(self, x_previous, y_previous, corr):
-        #make covariance matrix
-        covM = np.array([
-                            [np.var(x_previous), self.__covariance(x_previous, y_previous, corr)],
-                            [self.__covariance(x_previous, y_previous, corr), np.var(y_previous)]
-                        ], dtype = float)
-        printToTerminalOnce("COVM")
-        printToTerminalOnce(corr)
-        printToTerminalOnce(covM)
-        #calc cholevsky decomposition
-        #c = cholesky(covM, lower=True)
-        evals, evecs = eigh(covM)
-        c = np.dot(evecs, np.diag(np.sqrt(evals)))
-        return(c)
-
     #generate correlated counts by the help of the cholevski method
     def __correlate_proteins(self, data, prot1, prot2, corr):
         
+        #generate multivariate gaussian dist data
         x_previous = np.array(data.loc[data["ab_id"] == prot1,"ab_count"])
         y_previous = np.array(data.loc[data["ab_id"] == prot2,"ab_count"])
         
-        x_previous = np.random.normal(np.mean(x_previous), 0.1*np.std(x_previous), len(x_previous))
-        y_previous = np.random.normal(np.mean(y_previous), 0.1*np.std(y_previous), len(y_previous))
-        #x_previous[x_previous<0] = 0
-        #y_previous[y_previous<0] = 0
-        #printToTerminalOnce(" NEW VALUES FOR SIMLUATION")
-        #printToTerminalOnce(x_previous)
-        #c = self.__calc_c(x_previous, y_previous, corr)
-
-        #draw again from distriobution, in case Eigenvalues r negative leading to nans in c
-        #while(np.isnan(c).any()):
-            #dist1 = self.parameters.proteinDistributions[prot1]
-        #    dist2 = self.parameters.proteinDistributions[prot2]
-
-        #    dist = ProteinCountDistribution(self.parameters.CellNumber, dist2.mu, dist2.size)
-        #    proteinCountVector = dist.distributionValues()
-        #    y_previous = np.array(proteinCountVector)
-        #    c = self.__calc_c(x_previous, y_previous, corr)
-
+        x_previous = np.random.normal(np.mean(x_previous), np.std(x_previous), len(x_previous))
+        y_previous = np.random.normal(np.mean(y_previous), np.std(y_previous), len(y_previous))
         covM = np.array([
                             [np.var(x_previous), self.__covariance(x_previous, y_previous, corr)],
                             [self.__covariance(x_previous, y_previous, corr), np.var(y_previous)]
@@ -391,11 +361,8 @@ class SingleCellSimulation():
         means = [x_previous.mean(), y_previous.mean()]  
         values = np.random.multivariate_normal(means, covM, len(x_previous)).T
 
-        oldValues = np.array([values[0], values[1]])
-
-
-
-        #generating negbinom and map to same idnex - to keep the same rank
+        #generating negbinom and map to same idx as gaussian data
+        #keeoing rank for correlation but skewing data by negbinom
         dataFrame = pd.DataFrame({'X':values[0], 'Y':values[1]})
         dataFrame['Idx'] = np.arange(len(dataFrame))
         
@@ -414,17 +381,9 @@ class SingleCellSimulation():
         dataFrameSortY['Ynb'] = negBinomY
 
         newData = dataFrameSortY.sort_values(by=['Idx'])
-        oldValues = np.array([newData['Xnb'], newData['Ynb']])
-        #retunr the before set old values in same format
+        returnData = np.array([newData['Xnb'], newData['Ynb']])
 
-
-
-        printToTerminalOnce("     OLD VALUES    \n")
-
-        printToTerminalOnce(oldValues)
-        #correlated random variables
-
-        return(oldValues)
+        return(returnData)
 
     """ model correlated proteins """
     def __insert_correlations_between_proteins(self, data):
