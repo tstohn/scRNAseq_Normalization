@@ -117,6 +117,13 @@ class Benchmark():
         if( not self.parameters.normMethods ):
             printToTerminalOnce("No normalization methods given!")
             return
+
+        #delete normalization folder if exists (since a previous mthod might have used other norm methods, with other cell numbers etc which might
+        # lead to downstream errors)
+        folder_path = ("./bin/NORMALIZED_DATASETS/" + simulationName)
+        if os.path.exists(folder_path):
+            shutil.rmtree(folder_path, ignore_errors=True)
+            
         for norm in self.parameters.normMethods:
             if(norm == "GRAPH"):
                 commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " >> " + self.stdout + " 2>&1"

@@ -9,6 +9,10 @@ sys.path.append('./src/simulation/ABseqSimulation')
 sys.path.append('./src/methods/ToolBox')
 from functions import *
 
+'''
+All datasets will be normalized, if a file with the same name already exists, it will be deleted before.
+'''
+
 def parse_args():
 
     parser = argparse.ArgumentParser(description='Benchmarking all Normalization methods in a directory.')
