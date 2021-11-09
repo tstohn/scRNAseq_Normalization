@@ -123,13 +123,13 @@ class Benchmark():
                 try:
                     subprocess.run([commandString], shell = True, check = True)
                 except:
-                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed")
+                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
             else:
                 commandString = "OMP_NUM_THREADS=1 Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
                 try:
                     subprocess.run([commandString], shell = True, check = True)
                 except:
-                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed")
+                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
         #move also ground truth into normalization folder
         groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH.tsv"
         groundTruthResultFilePath = simulationFilePath + groundTruthName
@@ -162,7 +162,7 @@ class Benchmark():
             simulatedDataStream.write(dataSimulated)
             simulatedDataStream.close()
         except:
-            printToTerminalOnce("ERROR for moving simulated and groundTruth data")
+            printToTerminalOnce("ERROR for moving simulated and groundTruth data for " + self.parameters.iniFile)
 
         #run normalization benchmark
         normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
