@@ -46,6 +46,7 @@ def main():
     pool_size = args.t
     #necessay for pool to work with number of threads on linux: Issue: https://github.com/numpy/numpy/issues/14474
     os.environ['OPENBLAS_NUM_THREADS'] = str(pool_size)
+    os.environ["OMP_NUM_THREADS"] = str(pool_size)
     import numpy as np
 
     parameterFolder = args.dir

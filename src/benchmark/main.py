@@ -2,12 +2,10 @@
 from pickletools import string1
 import sys
 from datasetParsingFunctions import load_datasets_for_benchmark
-from NormalizedDataHandler import NormalizedDataHandler
 import argparse
 import os 
 
 sys.path.append('./src/simulation/ABseqSimulation')
-import Simulation
 sys.path.append('./src/methods/ToolBox')
 from functions import *
 
@@ -34,6 +32,9 @@ def parse_args():
 
 def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFile):
     #initialization
+    from NormalizedDataHandler import NormalizedDataHandler
+    import Simulation
+
     benchmark = NormalizedDataHandler(dataset, groundtruth, deleteBenchmark)
 
     #additional visualizations
@@ -102,6 +103,7 @@ def main():
     threads = args.t
     #necessay for pool to work with number of threads on linux: Issue: https://github.com/numpy/numpy/issues/14474
     os.environ['OPENBLAS_NUM_THREADS'] = str(threads)
+    os.environ["OMP_NUM_THREADS"] = str(threads)
 
     printToTerminalOnce("Running benchmark of normalized scRNAseq data from: "+sys.argv[len(sys.argv)-1]+"\n")
     datasets = load_datasets_for_benchmark(args.dir)
