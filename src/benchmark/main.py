@@ -117,7 +117,8 @@ def main():
     for dataset in datasets:
         make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.iniFile)
 
-    outfile.close()
+    if(args.stdout != ""):
+        outfile.close()
 
 if __name__ == '__main__':
     main()
