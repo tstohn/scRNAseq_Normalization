@@ -121,7 +121,7 @@ class NormalizedDataHandler:
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=random_factor)
         search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True, random_state=random_factor)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=random_factor)
-        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=-1)
+        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=1)
         lock.acquire()
         for s in scores:
             global_scores.append(s)
@@ -144,9 +144,9 @@ class NormalizedDataHandler:
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=1)
         search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=1)
-        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=-1)
+        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=1)
         #plot a confusion matrix
-        y_pred = cross_val_predict(search, X, y, cv=cv_outer, n_jobs=-1)
+        y_pred = cross_val_predict(search, X, y, cv=cv_outer, n_jobs=1)
         label_list = np.unique(y_pred)
         conf_mat = confusion_matrix(y, y_pred, labels =label_list)
         df_cm = pd.DataFrame(conf_mat, range(len(label_list)), range(len(label_list)))
