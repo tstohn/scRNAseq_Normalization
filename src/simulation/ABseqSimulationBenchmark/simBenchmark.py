@@ -137,21 +137,27 @@ class Benchmark():
                     subprocess.run([commandString], shell = True, check = True)
                 except:
                     printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
-        #move also ground truth into normalization folder
-        groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH.tsv"
-        groundTruthResultFilePath = simulationFilePath + groundTruthName
-        commandString = "cp " + groundTruthResultFilePath + " ./bin/NORMALIZED_DATASETS/" + simulationName + "/" + groundTruthName
-        subprocess.run([commandString], shell = True, check = True)
-        #move also simulated file into normalization folder
-        simulatedName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_SIMULATED.tsv"
-        simulatedResultFilePath = simulationFilePath + simulatedName
-        commandString = "cp " + simulatedResultFilePath + " ./bin/NORMALIZED_DATASETS/" + simulationName + "/" + simulatedName
-        subprocess.run([commandString], shell = True, check = True)
 
         try:
+
+            groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH.tsv"
+            simulatedName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_SIMULATED.tsv"
+            newGroundTruthName = "Groundtruth.tsv"
+            newSimulatedName = "Simulation.tsv"
+            groundTruthFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newGroundTruthName)
+            simulatedFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newSimulatedName)
+
+            #move also ground truth into normalization folder
+            groundTruthResultFilePath = simulationFilePath + groundTruthName
+            commandString = "cp " + groundTruthResultFilePath + " " + groundTruthFile
+            subprocess.run([commandString], shell = True, check = True)
+            #move also simulated file into normalization folder
+            simulatedResultFilePath = simulationFilePath + simulatedName
+            commandString = "cp " + simulatedResultFilePath + " " + simulatedFile
+            subprocess.run([commandString], shell = True, check = True)
+
             #remove the ab_count with ab_count_normalized to still run benchmark on it
             #from ground truth
-            groundTruthFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + groundTruthName)
             groundTruthDataStream = open(groundTruthFile, "rt")
             dataGroundTruth = groundTruthDataStream.read()
             dataGroundTruth = dataGroundTruth.replace('ab_count', 'ab_count_normalized')
@@ -160,7 +166,6 @@ class Benchmark():
             groundTruthDataStream.write(dataGroundTruth)
             groundTruthDataStream.close()
             #from simulated file
-            simulatedFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + simulatedName)
             simulatedDataStream = open(simulatedFile, "rt")
             dataSimulated = simulatedDataStream.read()
             dataSimulated = dataSimulated.replace('ab_count', 'ab_count_normalized')

@@ -69,13 +69,15 @@ class NormalizedDataHandler:
         self.groundtruth = pd.DataFrame()
         for file in file_list:
             data_name = os.path.basename(os.path.splitext(file)[0])
-            if("GROUNDTRUTH" in data_name):
+            if("Groundtruth" in data_name):
                 data_content = pd.read_csv(file, sep = '\t')
                 self.groundtruth = data_content
             data_content = pd.read_csv(file, sep = '\t')
             data_dict[data_name] = data_content
+
         #dictionary with data for all normalization methods
-        self.data = data_dict
+        sortedDataDict = dict( sorted(data_dict.items(), key=lambda x: x[0].lower()) )
+        self.data = sortedDataDict
         self.class_data = classification_dict
         #generate dictionary of classification arrays for normalized data
         for key in self.data:
@@ -294,6 +296,9 @@ class NormalizedDataHandler:
         dtScores = self.dt_classification()
         knnScores = self.knn_clasification()
 
+        dtScores.sort_index(axis=1, inplace=True)
+        knnScores.sort_index(axis=1, inplace=True)
+
         self.draw_treatment_barplot_for_knn_and_dt(knnScores, dtScores)
 
     def draw_tsne(self):
@@ -347,6 +352,7 @@ class NormalizedDataHandler:
     def ab_spearman_correlation_graph(self, filter = ""):
         plt.figure(figsize=(16,10))
         lengend_labels = []
+
         for key in self.data:
             print(key)
             data = self.data[key].copy()
@@ -374,7 +380,7 @@ class NormalizedDataHandler:
         normRMSDData = {}
         #for every norm method
         for key in self.data:
-            if("GROUNDTRUTH" in key):
+            if("Groundtruth" in key):
                 continue
 
             data = self.data[key].copy()
@@ -445,7 +451,7 @@ class NormalizedDataHandler:
         for key in self.data:
             if(key == "CLR"):
                 continue
-            if("GROUNDTRUTH" in key):
+            if("Groundtruth" in key):
                 continue
             dataNorm = self.data[key].copy()
             dataNorm = dataNorm[['sample_id', 'ab_id', 'ab_count_normalized']]
@@ -484,7 +490,7 @@ class NormalizedDataHandler:
             wantedVarProteinList.append(prot2)
             indices.append(prot1 + '_' + prot2)
         for key in self.data:
-            if("GROUNDTRUTH" in key):
+            if("Groundtruth" in key):
                 continue
             columnNames.append(key)
         correlations = pd.DataFrame(columns = columnNames, index  = indices)
@@ -499,7 +505,7 @@ class NormalizedDataHandler:
             correlations.loc[prot1 + '_' + prot2, "groundtruth"] = float(spvalue)
 
             for key in self.data:
-                if("GROUNDTRUTH" in key):
+                if("Groundtruth" in key):
                     continue
                 data = self.data[key].copy()
                 data = data[['sample_id', 'ab_id', 'ab_count_normalized']]
@@ -542,7 +548,7 @@ class NormalizedDataHandler:
             prot2 = corr[1]
             indices.append(prot1 + '_' + prot2)
         for key in self.data:
-            if("GROUNDTRUTH" in key):
+            if("Groundtruth" in key):
                 continue
             columnNames.append(key)
         correlations = pd.DataFrame(columns = columnNames, index  = indices)
@@ -557,7 +563,7 @@ class NormalizedDataHandler:
             correlations.loc[prot1 + '_' + prot2, "groundtruth"] = float(spvalue)
 
             for key in self.data:
-                if("GROUNDTRUTH" in key):
+                if("Groundtruth" in key):
                     continue
                 data = self.data[key].copy()
                 data = data[['sample_id', 'ab_id', 'ab_count_normalized']]
@@ -606,9 +612,9 @@ class NormalizedDataHandler:
         #for every batch
         normMethodsBatchDiff = pd.DataFrame()
         for key in self.data:
-            if("GROUNDTRUTH" in key):
+            if("Groundtruth" in key):
                 continue
-            if("SIMULATED" in key):
+            if("Simulation" in key):
                 continue
             batchDifferenceDict = {}
             data = self.data[key].copy()
