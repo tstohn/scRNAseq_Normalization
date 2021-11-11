@@ -141,6 +141,10 @@ run_tmm<-function(data)
   
   normfactors <- edgeR::calcNormFactors(countdata,sumTrim = 0.05, logratioTrim = 0) %>% 
     enframe("sample_id", "normfactor")
+  #on certain platform the output of normfactors is a tibble
+  #with the rownames of countdata (Mac, Ubuntu)
+  #however for e.g. OpenSuse its simply the rownumber
+  normfactors$sample_id <- colnames(countdata)
   normfactors <- normfactors %>%  
     mutate(sample_id = as.character(sample_id))
   
