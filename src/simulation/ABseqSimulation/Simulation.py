@@ -576,11 +576,11 @@ class SingleCellSimulation():
             self.__insert_correlations_between_proteins(self.groundTruthData)
         if(not (self.parameters.treatmentVector is None)):
             self.__insert_treatment_effect(self.groundTruthData)
+        if(self.parameters.abDuplicates > 1):
+            self.groundTruthData = self.__insert_ab_duplicates(self.groundTruthData)
 
         #add additional data pertubations
         perturbedData = self.groundTruthData.copy(deep=True)
-        if(self.parameters.abDuplicates > 1):
-            perturbedData = self.__insert_ab_duplicates(perturbedData)
         if(not (self.parameters.batchFactors is None)):
             perturbedData = self.__insert_batch_effect(perturbedData)
             self.__add_batch_effect_to_ground_truth(perturbedData)
