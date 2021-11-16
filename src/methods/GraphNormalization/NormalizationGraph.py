@@ -55,7 +55,7 @@ class NormalizationGraph:
         #make a list of all edges
         edge_list = list()
         for index, row in corr_table.iterrows():
-            if(abs(row['correlation']) > corr_threshold):
+            if(abs(row['correlation']) < corr_threshold):
                 edge_list.append((row['ab_id'], row['ab_id_2'], {'weight': row['correlation']}))
 
         #conatruct graph from edge list

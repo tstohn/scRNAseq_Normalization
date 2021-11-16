@@ -6,8 +6,11 @@ import re
 from os import listdir, makedirs
 from os.path import isfile, join
 
-"""  GRAPH NORMALIZATION: Normalize by ABs that are most correlated but removing those that already after library size normnalization show a strong evidence
+"""  GRAPH NORMALIZATION: Normalize by ABs that are least correlated but removing those that already after library size normnalization show a strong evidence
                           for seperating treatments (high cohenD with low p-value)
+
+    At the moment we choose the least correlated samples, as correlations are introduced during library size scaling as well as real correlaitons, which we do not
+    want to remove
 """
 
 def read_data(data_file):
@@ -79,7 +82,7 @@ def main():
     if(len(sys.argv) == 4):
         correlation = float(sys.argv[3])
     else:
-        correlation = 0.6
+        correlation = 0.5
 
     dataset_dir = "./bin/FILTERED_DATASETS"
     if(data_dir == "ALL"):

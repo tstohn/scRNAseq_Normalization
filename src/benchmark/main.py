@@ -127,7 +127,7 @@ def main():
     if(threadsSklearn != -1):
         os.environ['OPENBLAS_NUM_THREADS'] = str(threadsSklearn)
         os.environ["OMP_NUM_THREADS"] = str(threadsSklearn)
-
+        threadsSklearn = 1
     printToTerminalOnce("Running benchmark of normalized scRNAseq data from: "+sys.argv[len(sys.argv)-1]+"\n")
     datasets = load_datasets_for_benchmark(args.dir)
     printToTerminalOnce("Found " + str(len(datasets)) + " datasets to run normalization benchmark on")

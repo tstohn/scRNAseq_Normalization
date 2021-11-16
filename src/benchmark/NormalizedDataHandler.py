@@ -675,14 +675,13 @@ class NormalizedDataHandler:
             for prot in treatmentProts:
                 dict = {}
                 dataTmp = data[data["ab_id"] == prot]
-                for condition in data.cluster_id.unique():
+                for condition in dataTmp.cluster_id.unique():
                     condition = str(condition)
-                    dict[condition] = data.loc[data["cluster_id"] == condition, "ab_count_normalized"]
+                    dict[condition] = dataTmp.loc[dataTmp["cluster_id"] == condition, "ab_count_normalized"]
                 od = collections.OrderedDict(sorted(dict.items()))
                 box_plots = axs[i, j].boxplot(od.values(), patch_artist=True, showfliers=False)
                 axs[i, j].set_xticklabels(od.keys(), size = '10')
                 axs[i, j].set_title(key + " " + prot, size = '12')
-
                 pos = "green"
                 neg = "red"
                 non = ""
