@@ -1,9 +1,12 @@
 #!/usr/bin/python3
 from pickletools import string1
 import sys
+
+from numpy.lib.arraysetops import unique
 from datasetParsingFunctions import load_datasets_for_benchmark
 import argparse
 import os 
+import pandas as pd
 
 sys.path.append('./src/simulation/ABseqSimulation')
 sys.path.append('./src/methods/ToolBox')
@@ -48,11 +51,16 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
     benchmark.calculate_MMD_between_treatments()
 
     #elaborate analysis of norm methods
-    try:
-        benchmark.run_treatment_classification()
-    except Exception as e: 
-        print(e)
-        printToTerminalOnce("\n ERROR: Treatment classification failed\n")
+    treatmentNum = 1
+    dataTmp = pd.read_csv(dataset[0], sep = '\t')
+    treatmentNum = len(unique(dataTmp["cluster_id"]))
+
+    if(treatmentNum > 1):
+        try:
+            benchmark.run_treatment_classification()
+        except Exception as e: 
+            print(e)
+            printToTerminalOnce("\n ERROR: Treatment classification failed\n")
 
     if(groundtruth):
         params = Simulation.Parameters(iniFile)
