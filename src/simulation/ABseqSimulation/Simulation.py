@@ -551,11 +551,12 @@ class SingleCellSimulation():
         data["ab_count"] *= randomVector
 
         #between cell pertubation
-        perturbFrame = pd.DataFrame()
-        perturbFrame["sample_id"] = data["sample_id"].unique()
-        perturbFrame["factor"] = np.random.normal(1,self.parameters.noiseExtrinsic,len(perturbFrame))
-        perturbDict = dict(zip(perturbFrame["sample_id"], perturbFrame["factor"]))
-        data["ab_count"] = data["ab_count"] * data["sample_id"].map(perturbDict)
+        #disable for now, since it only correlates the samples
+            #perturbFrame = pd.DataFrame()
+            #perturbFrame["sample_id"] = data["sample_id"].unique()
+            #perturbFrame["factor"] = np.random.normal(1,self.parameters.noiseExtrinsic,len(perturbFrame))
+            #perturbDict = dict(zip(perturbFrame["sample_id"], perturbFrame["factor"]))
+            #data["ab_count"] = data["ab_count"] * data["sample_id"].map(perturbDict)
         data["ab_count"] = data["ab_count"].round(decimals = 0)
 
         return(data)

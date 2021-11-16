@@ -20,6 +20,7 @@ from sklearn.tree import *
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.manifold import TSNE
 from sklearn.metrics import confusion_matrix
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 import graphviz
 import seaborn as sns
