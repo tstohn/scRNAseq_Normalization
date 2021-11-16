@@ -121,7 +121,7 @@ class NormalizedDataHandler:
 
     def __calculate_scores(self, model, params, X, y, global_scores, lock, random_factor=None):
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=random_factor)
-        search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=self.threads, cv=cv_inner, refit=True, random_state=random_factor)
+        search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True, random_state=random_factor)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=random_factor)
         scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=self.threads)
         lock.acquire()
@@ -144,7 +144,7 @@ class NormalizedDataHandler:
             x.join()
 
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=1)
-        search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=self.threads, cv=cv_inner, refit=True)
+        search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=1)
         scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=self.threads)
         #plot a confusion matrix
