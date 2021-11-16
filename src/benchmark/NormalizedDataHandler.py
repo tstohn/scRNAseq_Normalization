@@ -121,6 +121,7 @@ class NormalizedDataHandler:
 
     def __calculate_scores(self, model, params, X, y, global_scores, lock, random_factor=None):
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=random_factor)
+        #do seach non threaded, but thread only in cross_val, Linux server has not the dependancies to disentangle those and assign right thread numbers
         search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True, random_state=random_factor)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=random_factor)
         scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=self.threads)
