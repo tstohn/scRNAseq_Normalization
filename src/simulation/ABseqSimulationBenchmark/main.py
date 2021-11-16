@@ -14,21 +14,23 @@ from functions import *
 def parse_args():
 
     parser = argparse.ArgumentParser(description='Benchmarking Simulations')
+    #if minus one, do not explicitely restrict threads - allowing python, R to spwan threads in their libraries
     parser.add_argument('--t', help='threads',
-                        type=int, default=1)
+                        type=int, default=-1)
     parser.add_argument('dir', metavar='DIR', type=str)
 
     args = parser.parse_args()
     return(args)
 
-def runSimulation(ini, newSimulationDir, stdoutFile):
+def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads):
     try:
         param = Parameters(ini)
-        benchmark = Benchmark(param, stdoutFile)
+        benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads)
         benchmark.run()
         benchmark.moveIntoOneFolder(newSimulationDir)
         benchmark.moveIntoOneFolder(stdoutFile)
-    except:
+    except Exception as e: 
+        print(e)
         printToTerminalOnce("\n ERROR: Could not run Benchmark on " + ini + "\n")
 
 def main():
@@ -44,9 +46,14 @@ def main():
     args = parse_args()
     #set thread limit before importing numpy
     pool_size = args.t
-    #necessay for pool to work with number of threads on linux: Issue: https://github.com/numpy/numpy/issues/14474
-    os.environ['OPENBLAS_NUM_THREADS'] = str(pool_size)
-    os.environ["OMP_NUM_THREADS"] = str(pool_size)
+    noExplicitelySetThreads = False
+    if(pool_size == -1):
+        pool_size = 1
+        noExplicitelySetThreads = True
+    else:
+        #necessay for pool to work with number of threads on linux: Issue: https://github.com/numpy/numpy/issues/14474
+        os.environ['OPENBLAS_NUM_THREADS'] = str(pool_size)
+        os.environ["OMP_NUM_THREADS"] = str(pool_size)
     import numpy as np
 
     parameterFolder = args.dir
@@ -64,7 +71,7 @@ def main():
     #run this as threads
     pool = Pool(pool_size)
     for ini in iniFileList:
-        pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile))
+        pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads))
             
     pool.close()
     pool.join()

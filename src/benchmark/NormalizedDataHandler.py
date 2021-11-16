@@ -61,9 +61,11 @@ class NormalizedDataHandler:
 
         classification_dict[data_name] = {"X": X, "Y": Y, "FEATURES": feature_ids}
     
-    def __init__(self, file_list, groundtruth, deleteBenchmark):
+    def __init__(self, file_list, groundtruth, deleteBenchmark, threads):
         data_dict = dict()
         classification_dict = dict()
+        #threads used for SKLEARN
+        self.threads = threads
 
         #generate dictionary of normalized data
         self.groundtruth = pd.DataFrame()
@@ -119,9 +121,9 @@ class NormalizedDataHandler:
 
     def __calculate_scores(self, model, params, X, y, global_scores, lock, random_factor=None):
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=random_factor)
-        search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True, random_state=random_factor)
+        search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=self.threads, cv=cv_inner, refit=True, random_state=random_factor)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=random_factor)
-        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=1)
+        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=self.threads)
         lock.acquire()
         for s in scores:
             global_scores.append(s)
@@ -142,11 +144,11 @@ class NormalizedDataHandler:
             x.join()
 
         cv_inner = KFold(n_splits=10, shuffle=True, random_state=1)
-        search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
+        search = RandomizedSearchCV(model, params, n_iter = 30, scoring='accuracy', n_jobs=self.threads, cv=cv_inner, refit=True)
         cv_outer = KFold(n_splits=5, shuffle=True, random_state=1)
-        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=1)
+        scores = cross_val_score(search, X, y, scoring='accuracy', cv=cv_outer, n_jobs=self.threads)
         #plot a confusion matrix
-        y_pred = cross_val_predict(search, X, y, cv=cv_outer, n_jobs=1)
+        y_pred = cross_val_predict(search, X, y, cv=cv_outer, n_jobs=self.threads)
         label_list = np.unique(y_pred)
         conf_mat = confusion_matrix(y, y_pred, labels =label_list)
         df_cm = pd.DataFrame(conf_mat, range(len(label_list)), range(len(label_list)))
@@ -323,7 +325,7 @@ class NormalizedDataHandler:
                 y_train, Y_test = np.array(Y)[train_index], np.array(Y)[test_index]
             #model = model.fit(X_train, y_train)
             cv_inner = KFold(n_splits=5, shuffle=True, random_state=1)
-            search = RandomizedSearchCV(model, params, n_iter = 20, scoring='accuracy', n_jobs=1, cv=cv_inner, refit=True)
+            search = RandomizedSearchCV(model, params, n_iter = 20, scoring='accuracy', n_jobs=self.threads, cv=cv_inner, refit=True)
             search = search.fit(X_train, y_train)
             model = search.best_estimator_
             dot_data = export_graphviz(model, out_file=None, 
@@ -481,7 +483,7 @@ class NormalizedDataHandler:
         
         #for the proteinCorrelations calcualte the spearman correlation for groundtruth and norm
         indices = []
-        columnNames = ["groundtruth"]
+        columnNames = ["Groundtruth"]
         wantedVarProteinList = []
         for corr in proteinCorrelations:
             prot1 = corr.prot1
@@ -502,7 +504,7 @@ class NormalizedDataHandler:
             dataTruth = self.groundtruth.copy()
             dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
             spvalue = stats.spearmanr(dataTruth.loc[dataTruth.ab_id == prot1, ["ab_count_normalized"]], dataTruth.loc[dataTruth.ab_id == prot2, ["ab_count_normalized"]]).correlation
-            correlations.loc[prot1 + '_' + prot2, "groundtruth"] = float(spvalue)
+            correlations.loc[prot1 + '_' + prot2, "Groundtruth"] = float(spvalue)
 
             for key in self.data:
                 if("Groundtruth" in key):
@@ -540,9 +542,10 @@ class NormalizedDataHandler:
             cor = (prot1, prot2)
             negProteinCorrelations.append(cor)
 
-        negProteinCorrelations = random.sample(negProteinCorrelations, 50)
+        sampleNumCorrelations = min(50, len(negProteinCorrelations))
+        negProteinCorrelations = random.sample(negProteinCorrelations, sampleNumCorrelations)
         indices = []
-        columnNames = ["groundtruth"]
+        columnNames = ["Groundtruth"]
         for corr in negProteinCorrelations:
             prot1 = corr[0]
             prot2 = corr[1]
@@ -560,7 +563,7 @@ class NormalizedDataHandler:
             dataTruth = self.groundtruth.copy()
             dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
             spvalue = stats.spearmanr(dataTruth.loc[dataTruth.ab_id == prot1, ["ab_count_normalized"]], dataTruth.loc[dataTruth.ab_id == prot2, ["ab_count_normalized"]]).correlation
-            correlations.loc[prot1 + '_' + prot2, "groundtruth"] = float(spvalue)
+            correlations.loc[prot1 + '_' + prot2, "Groundtruth"] = float(spvalue)
 
             for key in self.data:
                 if("Groundtruth" in key):

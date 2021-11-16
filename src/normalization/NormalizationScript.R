@@ -338,7 +338,7 @@ run_normalization<-function(dataset, method)
   datapath<-get_dataset_path()
   datapath<-paste(datapath, "/", dataset, sep="")
   data<-read_tsv(datapath, col_types = cols())
-  dir.create(paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset)), showWarnings = TRUE)
+  dir.create(paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset)), showWarnings = FALSE)
   
   columns = get_dataset_specific_column_names(datapath)
   dataset_processing_variables = get_prefilter_thresholds(datapath)

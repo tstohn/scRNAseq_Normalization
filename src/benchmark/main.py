@@ -27,19 +27,21 @@ def parse_args():
                         type=str)
     parser.add_argument('--stdout', help='write unimportant messages to a file', default="",
                         type=str)
+    #thread is the number of parallel runs of benchmarks: however it does not work on Linux server, therefore if threads is -1, we run one benchmark after the other
+    #but allow sklearn for treatment detection to spawn threads as it wants
     parser.add_argument('--t', help='threads',
-                        type=int, default=1)
+                        type=int, default=-1)
     parser.add_argument('dir', metavar='DIR', type=str)
 
     args = parser.parse_args()
     return(args)
 
-def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFile):
+def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFile, threadsSklearn):
     #initialization
     from NormalizedDataHandler import NormalizedDataHandler
     import Simulation
 
-    benchmark = NormalizedDataHandler(dataset, groundtruth, deleteBenchmark)
+    benchmark = NormalizedDataHandler(dataset, groundtruth, deleteBenchmark, threadsSklearn)
 
     #additional visualizations
     benchmark.draw_tsne()
@@ -48,21 +50,24 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
     #elaborate analysis of norm methods
     try:
         benchmark.run_treatment_classification()
-    except:
-       printToTerminalOnce("\n ERROR: Treatment classification failed\n")
+    except Exception as e: 
+        print(e)
+        printToTerminalOnce("\n ERROR: Treatment classification failed\n")
 
     if(groundtruth):
         params = Simulation.Parameters(iniFile)
 
         try:
             benchmark.ab_spearman_correlation(groundtruth) # make RMSD of correlation differences => barplot
-        except:
+        except Exception as e: 
+            print(e)
             printToTerminalOnce("\n ERROR: Spearman correlation failed\n")
         #RMSD of fold cahnges between total AB counts per sample 
         #(idea: insample fold cahnges between dofferent protein counts stay the same after normalization, only the different samples are scaled)
         try:
             benchmark.validate_normalizedData_against_groundTruth()
-        except:
+        except Exception as e: 
+            print(e)
             printToTerminalOnce("\n ERROR: RMSD between ABcount to min ABcount failed\n")
 
 
@@ -70,13 +75,15 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
         #make heatmap of all wanted, and of 50 randomly chosen unwanted variations
         try:
             benchmark.validate_correlations(params.proteinCorrelations)
-        except:
+        except Exception as e: 
+            print(e)
             printToTerminalOnce("\n ERROR: Detection of wanted Correlation failed\n")
 
         if(params.diffExProteins != None):
             try:
                 benchmark.validate_treatment_effect(params.diffExProteins, params.treatmentVector)
-            except:
+            except Exception as e: 
+                print(e)
                 printToTerminalOnce("\n ERROR: Treatment Effect validation failed\n")
 
         #calculate detected treatment effect - check we have wanted treatment effect and not unwanted
@@ -84,15 +91,17 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
             #calculate removed batch effect
             try:
                 benchmark.validate_batch_effect()
-            except:
+            except Exception as e: 
+                print(e)
                 printToTerminalOnce("\n ERROR: Batch Eff failed\n")
 
-    #additional correlation analysis for a subset od the data
-    if(spearmanFilter):
-        try:
-            benchmark.ab_spearman_correlation(groundtruth, spearmanFilter)
-        except:
-            printToTerminalOnce("\n ERROR: Spearman Correlelation for proteins of type " + spearmanFilter + " failed\n")
+        #additional correlation analysis for a subset od the data
+        if(spearmanFilter):
+            try:
+                benchmark.ab_spearman_correlation(groundtruth, spearmanFilter)
+            except Exception as e: 
+                print(e)
+                printToTerminalOnce("\n ERROR: Spearman Correlelation for proteins of type " + spearmanFilter + " failed\n")
 
 def main():
     if(len(sys.argv) < 2):
@@ -104,10 +113,12 @@ def main():
         outfile = open(args.stdout, 'a+')
         sys.stdout = outfile
         sys.stderr = outfile
-    threads = args.t
+    threadsSklearn = args.t
     #necessay for pool to work with number of threads on linux: Issue: https://github.com/numpy/numpy/issues/14474
-    os.environ['OPENBLAS_NUM_THREADS'] = str(threads)
-    os.environ["OMP_NUM_THREADS"] = str(threads)
+    
+    if(threadsSklearn != -1):
+        os.environ['OPENBLAS_NUM_THREADS'] = str(threadsSklearn)
+        os.environ["OMP_NUM_THREADS"] = str(threadsSklearn)
 
     printToTerminalOnce("Running benchmark of normalized scRNAseq data from: "+sys.argv[len(sys.argv)-1]+"\n")
     datasets = load_datasets_for_benchmark(args.dir)
@@ -115,7 +126,7 @@ def main():
 
     #make classifications
     for dataset in datasets:
-        make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.iniFile)
+        make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.iniFile, threadsSklearn)
 
     if(args.stdout != ""):
         outfile.close()

@@ -59,9 +59,10 @@ class Benchmark():
 
     parameters=None
 
-    def __init__(self, parameters, stdoutFile = ""):
+    def __init__(self, parameters, stdoutFile = "", noExplicitelySetThreads = False):
         self.parameters = parameters
         self.stdout = stdoutFile
+        self.noExplicitelySetThreads = noExplicitelySetThreads
 
     def __generateNormalizationIni(self, normOriginFilePath):
         iniFile = removesuffix(normOriginFilePath,'.tsv') + ".ini"
@@ -94,7 +95,11 @@ class Benchmark():
 
         #call simulations
         printToTerminalOnce("RUN SIMULATION")
-        subprocess.run(["OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
+
+        if(self.noExplicitelySetThreads):
+            subprocess.run(["python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
+        else:
+            subprocess.run(["OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
 
         #copy simulations into normnalization folder:
         #from bin/SIMMULATIONS to datasets/
@@ -123,19 +128,29 @@ class Benchmark():
         folder_path = ("./bin/NORMALIZED_DATASETS/" + simulationName)
         if os.path.exists(folder_path):
             shutil.rmtree(folder_path, ignore_errors=True)
-            
+
         for norm in self.parameters.normMethods:
             if(norm == "GRAPH"):
-                commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " >> " + self.stdout + " 2>&1"
+                commandString = ""
+                if(self.noExplicitelySetThreads):
+                    commandString = "python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " " + folder_path + " " + str(0.5) + " >> " + self.stdout + " 2>&1"
+                else:
+                    commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " " + folder_path + " " + str(0.5) + " >> " + self.stdout + " 2>&1"
                 try:
                     subprocess.run([commandString], shell = True, check = True)
-                except:
+                except Exception as e: 
+                    print(e)
                     printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
             else:
-                commandString = "OMP_NUM_THREADS=1 Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
+                commandString = ""
+                if(self.noExplicitelySetThreads):
+                    commandString = "Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
+                else:
+                    commandString = "OMP_NUM_THREADS=1 Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
                 try:
                     subprocess.run([commandString], shell = True, check = True)
-                except:
+                except Exception as e: 
+                    print(e)
                     printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
 
         try:
@@ -173,12 +188,18 @@ class Benchmark():
             simulatedDataStream = open(simulatedFile, "wt")
             simulatedDataStream.write(dataSimulated)
             simulatedDataStream.close()
-        except:
+        except Exception as e: 
+            print(e)
             printToTerminalOnce("ERROR for moving simulated and groundTruth data for " + self.parameters.iniFile)
 
         #run normalization benchmark
         normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
-        benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1 " + normResultFilePath
+        benchmarkCommand = ""
+        if(self.noExplicitelySetThreads):
+            benchmarkCommand = "python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t -1 " + normResultFilePath
+        else:
+            benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1 " + normResultFilePath
+        
         subprocess.run([benchmarkCommand], shell = True, check = True)
 
     #every run of a simulation -> normalizaitons -> benchmark results in a folder in bin/BENCHMARK

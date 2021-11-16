@@ -81,8 +81,8 @@ class Parameters():
     treatmentVector = None
     diffExProteins = None
     batchFactors=None
-    noiseIntrinsic=0.05
-    noiseExtrinsic=0.1
+    noiseIntrinsic=0.0
+    noiseExtrinsic=0.0
 
     proteinCorrelations = []
     proteinDistributions = {}
