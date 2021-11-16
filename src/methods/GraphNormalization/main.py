@@ -6,6 +6,10 @@ import re
 from os import listdir, makedirs
 from os.path import isfile, join
 
+"""  GRAPH NORMALIZATION: Normalize by ABs that are most correlated but removing those that already after library size normnalization show a strong evidence
+                          for seperating treatments (high cohenD with low p-value)
+"""
+
 def read_data(data_file):
     data = pd.read_csv(data_file, sep='\t')
     return(data)
@@ -51,7 +55,8 @@ def run_normalization_on_dataset(data_dir, correlation, output_dir = ""):
     remove_batch_effect = parse_ini_for_batch_effect_removal(data_dir)
     try:
         result = normalize_data(data, correlation, remove_batch_effect)
-    except:
+    except Exception as e: 
+        print(e)
         print("Could not normalize dataset " + data_dir)
         return
     if(output_dir):
@@ -60,15 +65,22 @@ def run_normalization_on_dataset(data_dir, correlation, output_dir = ""):
     else:
         result.to_csv(os.path.dirname(data_dir) + "/GraphNormalized.tsv", sep='\t')
 
+#arguments:
+# data_directory or "ALL" for all in FILTERED_DATASETS, output directory, correlation cutoff
 def main():
-    if(len(sys.argv) != 3 and len(sys.argv) != 2):
+    if(len(sys.argv) != 3 and len(sys.argv) != 4):
         print("ERROR: use script with <python3 graphNormalization.py [directory of datasets]>\n")
         exit(1)
+
     data_dir = sys.argv[1]
-    if(len(sys.argv) == 3):
-        correlation = float(sys.argv[2])
+    output_dir = sys.argv[2]
+
+    #last argument is correlation
+    if(len(sys.argv) == 4):
+        correlation = float(sys.argv[3])
     else:
-        correlation = 0.7
+        correlation = 0.6
+
     dataset_dir = "./bin/FILTERED_DATASETS"
     if(data_dir == "ALL"):
         #store all not ini files in list (store full path)
@@ -84,7 +96,7 @@ def main():
             print("Running Graph normalization on: " + dataset)
             run_normalization_on_dataset(dataset, correlation, output_dir)
     else:
-        run_normalization_on_dataset(data_dir, correlation)
+        run_normalization_on_dataset(data_dir, correlation, output_dir)
 
 if __name__ == '__main__':
     main()

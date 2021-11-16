@@ -55,7 +55,7 @@ class NormalizationGraph:
         #make a list of all edges
         edge_list = list()
         for index, row in corr_table.iterrows():
-            if(row['correlation'] > corr_threshold):
+            if(abs(row['correlation']) > corr_threshold):
                 edge_list.append((row['ab_id'], row['ab_id_2'], {'weight': row['correlation']}))
 
         #conatruct graph from edge list
@@ -163,6 +163,7 @@ class NormalizationGraph:
 
     #return a table with ID and norm_score column
     #normalize over all clusters ith more than 20 nodes and average over those
+    #NOT USED at the moment
     def get_normalized_score_multiClique(self, take_log=False):
         #find max_clique
         clique_list = list(nx.find_cliques(self.G))
