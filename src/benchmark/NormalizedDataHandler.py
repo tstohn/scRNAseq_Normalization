@@ -359,7 +359,6 @@ class NormalizedDataHandler:
         lengend_labels = []
 
         for key in self.data:
-            print(key)
             data = self.data[key].copy()
 
             #speacial line for a data set where phospho proteins were excluded due to expected correlations

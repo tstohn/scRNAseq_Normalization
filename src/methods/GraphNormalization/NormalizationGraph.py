@@ -104,8 +104,6 @@ class NormalizationGraph:
                 test_dict[t] = treatment_table
             for ab in abs:
                 for x,y in (combinations(treatments,2)):
-                    print(treatments)
-                    print(str(x) + "_" + str(y) + ":" + str(abs))
                     ttest, pval = stats.ttest_ind(test_dict[x][ab], test_dict[y][ab])
                     cohen_d = cohend(test_dict[x][ab], test_dict[y][ab])
                     if(pval<p_val and cohen_d >= cohend_val):
