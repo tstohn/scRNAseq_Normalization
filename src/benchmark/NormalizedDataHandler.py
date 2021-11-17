@@ -680,6 +680,8 @@ class NormalizedDataHandler:
                 for condition in dataTmp.cluster_id.unique():
                     condition = str(condition)
                     dict[condition] = dataTmp.loc[dataTmp["cluster_id"] == condition, "ab_count_normalized"]
+                if(not dict):
+                    printToTerminalOnce("Error: There is no data for conditions. E.g. AB names do not match anymore (AB duplicates)")
                 od = collections.OrderedDict(sorted(dict.items()))
                 box_plots = axs[i, j].boxplot(od.values(), patch_artist=True, showfliers=False)
                 axs[i, j].set_xticklabels(od.keys(), size = '10')
