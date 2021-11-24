@@ -112,11 +112,17 @@ class NormalizedDataHandler:
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/TSNE_ClusterVisualization")
         if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/SpearmanCorrelations"):
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/SpearmanCorrelations")
-        self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Classification/results.tsv", "w+")
+        if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/Results"):
+            os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/Results")
+        #result TXT files
+        self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/treatmentAccuracy.tsv", "w+")
         self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
 
-        self.sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/SpearmanCorrelations/results_spearman.tsv", "w+")
+        self.sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/spearmanCorrelations.tsv", "w+")
         self.sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATION_MEAN" + "\t" + "SPEARMAN_PVALUE_MEAN" + "\n")
+
+        self.rmsd_sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/spearmanRMSD.tsv", "w+")
+        self.sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATIONS_RMSD" + "\n")
 
         self.dataset_name = folder_name
         self.folder_path = ("bin/BENCHMARKED_DATASETS/"+folder_name+"/")
@@ -402,6 +408,8 @@ class NormalizedDataHandler:
             mse = sklearn.metrics.mean_squared_error(result.SPvalues, result.SPvalues_norm)
             rmsd = math.sqrt(mse)
             normRMSDData[key] = rmsd
+            self.rmsd_sp_results.write(key + "\t"+ str(round(rmsd,4)) + "\n")
+
         #draw barplot of all RMSDs
         values = normRMSDData.values()
         normMethods = normRMSDData.keys()

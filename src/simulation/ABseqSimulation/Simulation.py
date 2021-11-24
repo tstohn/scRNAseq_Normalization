@@ -609,7 +609,7 @@ class SingleCellSimulation():
     """ SAVE THE DATA """
     def save_data(self):
         #safe data
-        printToTerminalOnce("\tSafe Data")
+        printToTerminalOnce("\tSave Data")
 
         if not os.path.isdir(self.output_dir):
             os.makedirs(self.output_dir)
@@ -617,3 +617,5 @@ class SingleCellSimulation():
         
         self.simulatedData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_SIMULATED.tsv", sep='\t', index = False)
         self.groundTruthData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_GROUNDTRUTH.tsv", sep='\t', index = False)
+        printToTerminalOnce("\tData saved")
+
