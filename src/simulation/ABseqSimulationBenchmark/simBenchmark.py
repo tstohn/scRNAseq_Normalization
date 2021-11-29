@@ -59,10 +59,11 @@ class Benchmark():
 
     parameters=None
 
-    def __init__(self, parameters, stdoutFile = "", noExplicitelySetThreads = False):
+    def __init__(self, parameters, stdoutFile = "", noExplicitelySetThreads = False, keepData = False):
         self.parameters = parameters
         self.stdout = stdoutFile
         self.noExplicitelySetThreads = noExplicitelySetThreads
+        self.keepData = keepData
 
     def __generateNormalizationIni(self, normOriginFilePath):
         iniFile = removesuffix(normOriginFilePath,'.tsv') + ".ini"
@@ -201,6 +202,17 @@ class Benchmark():
             benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1 " + normResultFilePath
         
         subprocess.run([benchmarkCommand], shell = True, check = True)
+
+        if(not self.keepData):
+            #delete folder of normalized data
+            subprocess.run("rm -r " + folder_path, shell = True, check = True)
+            #delete simulated/ groundtruth data
+            subprocess.run("rm -r " + simulationResultFilePath, shell = True, check = True)
+            subprocess.run("rm -r " + groundTruthResultFilePath, shell = True, check = True)
+            #delete the ini/tsv file copied into normalization folder
+            iniFileToDelte = removesuffix(normOriginFilePath,'.tsv') + ".ini"
+            subprocess.run("rm -r " + normOriginFilePath, shell = True, check = True)
+            subprocess.run("rm -r " + iniFileToDelte, shell = True, check = True)
 
     #every run of a simulation -> normalizaitons -> benchmark results in a folder in bin/BENCHMARK
     #all those folers are beeing stored in a foler called SIMULATIONS_dateTime to keep better track

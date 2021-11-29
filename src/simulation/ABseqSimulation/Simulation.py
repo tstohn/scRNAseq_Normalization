@@ -81,7 +81,7 @@ class Parameters():
     treatmentVector = None
     diffExProteins = None
     batchFactors=None
-    noiseIntrinsic=0.0
+    noise=0.0
     noiseExtrinsic=0.0
 
     proteinCorrelations = []
@@ -108,28 +108,28 @@ class Parameters():
                         self.ProteinLevels.append(newProteinLevels)
                     else:
                         self.ProteinLevels = [newProteinLevels]
-            elif(str.startswith(line, "size")):
+            elif(str.startswith(line, "size=")):
                 info = re.match(("size=(.*)"), line)
                 self.size = float(info[1].rstrip("\n"))
-            elif(str.startswith(line, "CellNumber")):
+            elif(str.startswith(line, "CellNumber=")):
                 info = re.match(("CellNumber=(.*)"), line)
                 self.CellNumber = int(info[1].rstrip("\n"))
-            elif(str.startswith(line, "abDuplicates")):
+            elif(str.startswith(line, "abDuplicates=")):
                 info = re.match(("abDuplicates=(.*)"), line)
                 self.abDuplicates = int(info[1].rstrip("\n"))
-            elif(str.startswith(line, "abBindingEfficiency")):
+            elif(str.startswith(line, "abBindingEfficiency=")):
                 info = re.match(("abBindingEfficiency=(.*)"), line)
                 self.abBindingEfficiency = float(info[1].rstrip("\n"))
-            elif(str.startswith(line, "seqAmplificationEfficiency")):
+            elif(str.startswith(line, "seqAmplificationEfficiency=")):
                 info = re.match(("seqAmplificationEfficiency=(.*)"), line)
                 self.seqAmplificationEfficiency = float(info[1].rstrip("\n"))
-            elif(str.startswith(line, "pcrCycles")):
+            elif(str.startswith(line, "pcrCycles=")):
                 info = re.match(("pcrCycles=(.*)"), line)
                 self.pcrCycles = float(info[1].rstrip("\n"))
-            elif(str.startswith(line, "pcrCapture")):
+            elif(str.startswith(line, "pcrCapture=")):
                 info = re.match(("pcrCapture=(.*)"), line)
                 self.pcrCapture = float(info[1].rstrip("\n"))  
-            elif(str.startswith(line, "treatmentVector")):
+            elif(str.startswith(line, "treatmentVector=")):
                 info = re.match(("treatmentVector=(.*)"), line)
                 info = str(info[1]).split(";")
                 for elementVec in info:
@@ -147,7 +147,7 @@ class Parameters():
                         self.treatmentVector.append(tmpTreatmentVec)
                     else:
                         self.treatmentVector = [tmpTreatmentVec]
-            elif(str.startswith(line, "diffExProteins")):
+            elif(str.startswith(line, "diffExProteins=")):
                 info = re.match(("diffExProteins=(.*)"), line)
                 info = str(info[1]).split(";")
                 for elementVec in info:
@@ -165,7 +165,7 @@ class Parameters():
                         self.diffExProteins.append(tmpProtIdVec)
                     else:
                         self.diffExProteins = [tmpProtIdVec]
-            elif(str.startswith(line, "batchFactors")):
+            elif(str.startswith(line, "batchFactors=")):
                 info = re.match(("batchFactors=(.*)"), line)
                 info = str(info[1]).split(",")
                 for batchNum in info:
@@ -174,13 +174,13 @@ class Parameters():
                         self.batchFactors.append(num)
                     else:
                         self.batchFactors = [num]   
-            elif(str.startswith(line, "libSize")):
+            elif(str.startswith(line, "libSize=")):
                 info = re.match(("libSize=\[(.*)\]"), line)
                 info = str(info[1]).split(",")
                 assert(len(info)==2)
                 self.libSize[0]=float(info[0])
                 self.libSize[1]=float(info[1])
-            elif(str.startswith(line, "abDuplicateRange")):
+            elif(str.startswith(line, "abDuplicateRange=")):
                 info = re.match(("abDuplicateRange=\[(.*)\]"), line)
                 info = str(info[1]).split(",")
                 assert(len(info)==2)
@@ -209,12 +209,9 @@ class Parameters():
             elif(str.startswith(line, "abDuplicateDisturbance=")):
                 info = re.match(("abDuplicateDisturbance=(.*)"), line)
                 self.abDuplicateDisturbance=float(info[1])
-            elif(str.startswith(line, "noiseIntrinsic")):
-                info = re.match(("noiseIntrinsic=(.*)"), line)
-                self.noiseIntrinsic = float(info[1].rstrip("\n"))
-            elif(str.startswith(line, "noiseExtrinsic")):
-                info = re.match(("noiseExtrinsic=(.*)"), line)
-                self.noiseExtrinsic = float(info[1].rstrip("\n"))
+            elif(str.startswith(line, "noise=")):
+                info = re.match(("noise=(.*)"), line)
+                self.noise = float(info[1].rstrip("\n"))
 
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
@@ -547,7 +544,7 @@ class SingleCellSimulation():
         printToTerminalOnce("\tAdding random noise to data")
 
         #cell instrinsic pertubation
-        randomVector = np.random.normal(1,self.parameters.noiseIntrinsic,len(data))
+        randomVector = np.random.normal(1,self.parameters.noise,len(data))
         data["ab_count"] *= randomVector
 
         #between cell pertubation
