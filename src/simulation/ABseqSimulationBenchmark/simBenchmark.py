@@ -221,3 +221,7 @@ class Benchmark():
         if(os.path.exists("./bin/BENCHMARKED_DATASETS/" + simulationName)):
             shutil.move("./bin/BENCHMARKED_DATASETS/" + simulationName, newSimulationDir)
 
+            #generate global result folder for all benchmarks
+            os.mkdir(newSimulationDir + "/Results")
+
+

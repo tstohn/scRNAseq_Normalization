@@ -122,7 +122,7 @@ class NormalizedDataHandler:
         self.sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATION_MEAN" + "\t" + "SPEARMAN_PVALUE_MEAN" + "\n")
 
         self.rmsd_sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/spearmanRMSD.tsv", "w+")
-        self.sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATIONS_RMSD" + "\n")
+        self.rmsd_sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATIONS_RMSD" + "\n")
 
         self.dataset_name = folder_name
         self.folder_path = ("bin/BENCHMARKED_DATASETS/"+folder_name+"/")

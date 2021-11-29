@@ -78,7 +78,6 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
             print(e)
             printToTerminalOnce("\n ERROR: RMSD between ABcount to min ABcount failed\n")
 
-
         #calculate detected correlations of proteins - check we have wanted and not unwanted corr
         #make heatmap of all wanted, and of 50 randomly chosen unwanted variations
         try:

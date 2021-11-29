@@ -12,6 +12,8 @@ sys.path.append('./src/methods/ToolBox')
 from functions import *
 
 """
+    Default Usage: IniFile with one line that contains the string INIRANGE: this line defines the parameter that is altered fir simulation purposes
+
     Parameters:
         -in: the input parameter file, it can contain ranges for certain values, for each value in this range a new ini file is temporaryly generated
              to store the parameters during simulation, since several different tools will run and need access to it.
