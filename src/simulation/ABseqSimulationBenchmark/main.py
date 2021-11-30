@@ -39,6 +39,7 @@ def parse_args():
     
     return(args)
 
+#the newly generated files are written into a tmp directory, there they consist of a name which is basically a number from 0 to <numberOfSimulatedSamples>
 def generate_simulation_iniFiles(iniFile):
     print("generating")
     if(os.path.isdir(os.path.realpath(iniFile))):
@@ -56,7 +57,6 @@ def generate_simulation_iniFiles(iniFile):
     line = file.readline()
     start = end = factor = 1
     while line:
-        line = file.readline()
         if( (not line.startswith("#")) and ("INIRANGE" in line) ):
             info = re.match(("(.+?)INIRANGE=(.*)"), line)
             variableParameter = str(info[1])        
@@ -71,6 +71,7 @@ def generate_simulation_iniFiles(iniFile):
                     factor = int(element)
                 elementNum += 1
             break
+        line = file.readline()
     file.close()
     
     count = 0
@@ -79,7 +80,7 @@ def generate_simulation_iniFiles(iniFile):
         file = open(iniFile, "r")
         line = file.readline()
         while line:
-            line = file.readline()
+            printToTerminalOnce(line)
             if(str.startswith(line, variableParameter+"INIRANGE")):
                 continue
             elif(str.startswith(line, variableParameter)):
@@ -89,7 +90,10 @@ def generate_simulation_iniFiles(iniFile):
             else:
                 #write same line into file
                 newFile.write(line)
+            line = file.readline()
         count += 1
+        newFile.close()
+        file.close()
     return(dir_path)
 
 def delete_tmp_folder(folder):
@@ -103,6 +107,7 @@ def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, ke
         benchmark.run()
         benchmark.moveIntoOneFolder(newSimulationDir)
         benchmark.moveIntoOneFolder(stdoutFile)
+        benchmark.copyResultsIntoOneFile()
     except Exception as e: 
         print(e)
         printToTerminalOnce("\n ERROR: Could not run Benchmark on " + ini + "\n")

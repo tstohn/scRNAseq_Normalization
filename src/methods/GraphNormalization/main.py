@@ -21,20 +21,23 @@ def parse_ini_for_batch_effect_removal(data_dir):
     #check path to ini files for datasets from settings.ini
     settings = open("settings.ini", "r")
     path = ""
+    line = settings.readline()
     while settings:
-        line = settings.readline()
         print(line)
         data_path = re.match(("datasets=(.*)"), line)
         if(data_path):
             path = data_path[1].rstrip("\n")
             break
+        line = settings.readline()
+
     #parse ini file for dataset
     data_ini = open(path + "/" + os.path.basename(os.path.splitext(data_dir)[0]) + ".ini", "r")
+    line = data_ini.readline()
     while data_ini:
-        line = data_ini.readline()
         batch_eff = re.match(("removeBatchEffect=(\\d)"), line)
         if(batch_eff):
             return(int(batch_eff[1].rstrip("\n")))
+        line = data_ini.readline()
 
 def normalize_data(dataset, correlation, remove_batch_effect=1):
     corr_method = "spearman"

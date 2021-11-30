@@ -97,7 +97,6 @@ class Parameters():
         file = open(paramFile, "r")
         line = file.readline()
         while line:
-            line = file.readline()
             if(str.startswith(line, "ProteinLevels")):
                 info = re.match(("ProteinLevels=\[(.*)\]"), line)
                 info = str(info[1]).split(";")
@@ -212,6 +211,7 @@ class Parameters():
             elif(str.startswith(line, "noise=")):
                 info = re.match(("noise=(.*)"), line)
                 self.noise = float(info[1].rstrip("\n"))
+            line = file.readline()
 
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)

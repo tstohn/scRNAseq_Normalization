@@ -27,7 +27,6 @@ class Parameters():
         file = open(paramFile, "r")
         line = file.readline()
         while line:
-            line = file.readline()
             if(str.startswith(line, "normMethods")):
                 info = re.match(("normMethods=(.*)"), line)
                 info = str(info[1]).split(",")
@@ -37,16 +36,17 @@ class Parameters():
                 info = re.match(("batchEffect=(.*)"), line)
                 if(int(info[1]) == 1):
                     self.batchEffect = True
+            line = file.readline()
 
     def __parseDatasetDir(self):
         settingsFile = "./settings.ini"
         file = open(settingsFile, "r")
         line = file.readline()
         while line:
-            line = file.readline()
             if(str.startswith(line, "datasets")):
                 info = re.match(("datasets=(.*)"), line)
                 self.datasets = str(info[1])
+            line = file.readline()
 
         if(self.datasets == ""):
             printToTerminalOnce("WARNING: NO DIRECTORY FOR NORMALIZATION FILES GIVEN")
@@ -221,7 +221,38 @@ class Benchmark():
         if(os.path.exists("./bin/BENCHMARKED_DATASETS/" + simulationName)):
             shutil.move("./bin/BENCHMARKED_DATASETS/" + simulationName, newSimulationDir)
 
-            #generate global result folder for all benchmarks
-            os.mkdir(newSimulationDir + "/Results")
+    def combine_files(newSimulationDir, resultDir, fileName):
+        newFile = open(resultDir + fileName, 'a')
+        fileNumber = 0
+        for oldFile in os.listdir(newSimulationDir):
+            if oldFile.endswith(fileName):
+                fileIdentifier = re.search(r'\d+', oldFile).group()
+                fileStream = open(oldFile,'r')
+                line = fileStream.readline()
+                lineNum = 0
+                while line:
+                    if(fileNumber!=0 and lineNum==0):
+                        lineNum = lineNum + 1
+                        continue
+                    else:
+                        newFile.write(line)
+                        lineNum = lineNum + 1
+                    line = fileStream.readline()
+            fileNumber = fileNumber + 1
+            oldFile.close()
+        newFile.close()
+
+
+    #looks up the result files for all tests (Spearman/ Classification/ etv.) and writes the results
+    #of the different Simulations into one common file
+    def copyResultsIntoOneFile(newSimulationDir):
+        resultDir = newSimulationDir + "/Results/"
+        if not os.path.exists(resultDir):
+            os.mkdir(resultDir)
+
+        #Spearman RMSD data
+        fileNameList = ["spearmanRMSD.tsv"]
+        for fileName in fileNameList:
+            combine_files(newSimulationDir, resultDir, fileName)
 
 
