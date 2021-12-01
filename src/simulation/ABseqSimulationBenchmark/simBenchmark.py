@@ -221,38 +221,38 @@ class Benchmark():
         if(os.path.exists("./bin/BENCHMARKED_DATASETS/" + simulationName)):
             shutil.move("./bin/BENCHMARKED_DATASETS/" + simulationName, newSimulationDir)
 
-    def combine_files(newSimulationDir, resultDir, fileName):
-        newFile = open(resultDir + fileName, 'a')
-        fileNumber = 0
-        for oldFile in os.listdir(newSimulationDir):
-            if oldFile.endswith(fileName):
-                fileIdentifier = re.search(r'\d+', oldFile).group()
-                fileStream = open(oldFile,'r')
+    def combine_files(self, newSimulationDir, resultDir, fileName):
+        newFile = open(resultDir + fileName, 'a')  
+        filePath = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))
+
+        simulationName = newSimulationDir + "/" + filePath + "/Results/"
+        #for loop to go through all files and get the ONE file with the results
+        for oldFile in os.listdir(simulationName):
+            if oldFile.endswith(fileName):                
+                fileStream = open(simulationName + oldFile,'r')
                 line = fileStream.readline()
                 lineNum = 0
                 while line:
-                    if(fileNumber!=0 and lineNum==0):
-                        lineNum = lineNum + 1
-                        continue
-                    else:
-                        newFile.write(line)
-                        lineNum = lineNum + 1
+                    if(lineNum==0 and os.stat(resultDir + fileName).st_size==0):
+                        newFile.write("Simulation_Identifier" + "\t" + line)
+                    elif(lineNum!=0):
+                        fileIdentifier = re.findall(r'\d+', filePath)[0]
+                        newFile.write(fileIdentifier + "\t" + line)
+                    lineNum = lineNum + 1
                     line = fileStream.readline()
-            fileNumber = fileNumber + 1
-            oldFile.close()
+                fileStream.close()
+                break
         newFile.close()
-
 
     #looks up the result files for all tests (Spearman/ Classification/ etv.) and writes the results
     #of the different Simulations into one common file
-    def copyResultsIntoOneFile(newSimulationDir):
+    def copyResultsIntoOneFile(self, newSimulationDir):
         resultDir = newSimulationDir + "/Results/"
         if not os.path.exists(resultDir):
             os.mkdir(resultDir)
 
         #Spearman RMSD data
-        fileNameList = ["spearmanRMSD.tsv"]
+        fileNameList = ["spearmanRMSD.tsv", "treatmentAccuracy.tsv", "spearmanCorrelations.tsv"]
         for fileName in fileNameList:
-            combine_files(newSimulationDir, resultDir, fileName)
-
+            self.combine_files(newSimulationDir, resultDir, fileName)
 

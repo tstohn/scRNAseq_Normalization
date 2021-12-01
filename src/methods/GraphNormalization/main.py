@@ -23,7 +23,6 @@ def parse_ini_for_batch_effect_removal(data_dir):
     path = ""
     line = settings.readline()
     while settings:
-        print(line)
         data_path = re.match(("datasets=(.*)"), line)
         if(data_path):
             path = data_path[1].rstrip("\n")

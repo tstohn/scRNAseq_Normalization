@@ -41,11 +41,10 @@ def parse_args():
 
 #the newly generated files are written into a tmp directory, there they consist of a name which is basically a number from 0 to <numberOfSimulatedSamples>
 def generate_simulation_iniFiles(iniFile):
-    print("generating")
     if(os.path.isdir(os.path.realpath(iniFile))):
         printToTerminalOnce("ERROR: Directiory given, but the flag for handling single predefined ini files not set; ABORT SIMULATION")
         exit()
-    print("Generating INI Files for simulations")
+    printToTerminalOnce("Generating INI Files for simulations")
     dir_path = os.path.dirname(os.path.realpath(iniFile)) + "/TmpIniDir/"
     if(os.path.exists(dir_path)):
         shutil.rmtree(dir_path)
@@ -76,12 +75,13 @@ def generate_simulation_iniFiles(iniFile):
     
     count = 0
     for i in range(start, end, factor):
+        printToTerminalOnce("File: " + str(i))
         newFile = open(dir_path + "/" + str(count) + ".ini", "a")
         file = open(iniFile, "r")
         line = file.readline()
         while line:
-            printToTerminalOnce(line)
             if(str.startswith(line, variableParameter+"INIRANGE")):
+                line = file.readline()
                 continue
             elif(str.startswith(line, variableParameter)):
                 #write new variable line
@@ -107,9 +107,9 @@ def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, ke
         benchmark.run()
         benchmark.moveIntoOneFolder(newSimulationDir)
         benchmark.moveIntoOneFolder(stdoutFile)
-        benchmark.copyResultsIntoOneFile()
+        benchmark.copyResultsIntoOneFile(newSimulationDir)
     except Exception as e: 
-        print(e)
+        print("#ERROR MESSAGE: \'" + e + "\'\n")
         printToTerminalOnce("\n ERROR: Could not run Benchmark on " + ini + "\n")
 
 def main():
