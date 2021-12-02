@@ -41,6 +41,7 @@ def parse_args():
 
 #the newly generated files are written into a tmp directory, there they consist of a name which is basically a number from 0 to <numberOfSimulatedSamples>
 def generate_simulation_iniFiles(iniFile):
+    import numpy as np
     if(os.path.isdir(os.path.realpath(iniFile))):
         printToTerminalOnce("ERROR: Directiory given, but the flag for handling single predefined ini files not set; ABORT SIMULATION")
         exit()
@@ -55,6 +56,7 @@ def generate_simulation_iniFiles(iniFile):
     file = open(iniFile, "r")
     line = file.readline()
     start = end = factor = 1
+    foundIni = False
     while line:
         if( (not line.startswith("#")) and ("INIRANGE" in line) ):
             info = re.match(("(.+?)INIRANGE=(.*)"), line)
@@ -63,18 +65,22 @@ def generate_simulation_iniFiles(iniFile):
             elementNum = 0
             for element in info:
                 if(elementNum == 0):
-                    start = int(element)
+                    start = float(element)
                 elif(elementNum == 1):
-                    end = int(element)
+                    end = float(element)
                 elif(elementNum == 2):
-                    factor = int(element)
+                    factor = float(element)
                 elementNum += 1
-            break
+            if(foundIni==True):
+                print("ERROR parsing INIRANGE for Benchmark; foundn several lines with 'INIRANGE', but a simulation can only have a single variable\n")
+                exit()
+            foundIni = True
         line = file.readline()
     file.close()
     
     count = 0
-    for i in range(start, end, factor):
+    for i in np.arange(start, end, factor):
+        i = round(i,2)
         printToTerminalOnce("File: " + str(i))
         newFile = open(dir_path + "/" + str(count) + ".ini", "a")
         file = open(iniFile, "r")
@@ -87,6 +93,11 @@ def generate_simulation_iniFiles(iniFile):
                 #write new variable line
                 if(variableParameter=="libSize"):
                     newFile.write("libSize=[1," + str(i) + "]\n")
+                if(variableParameter=="noise"):
+                    newFile.write("noise=" + str(i) + "\n")
+                if(variableParameter=="ProteinLevels"):
+                    newLine = line.replace("X", str(i))
+                    newFile.write("noise=" + newLine + "\n")
             else:
                 #write same line into file
                 newFile.write(line)
@@ -125,15 +136,6 @@ def main():
     sys.stderr = outfile
     args = parse_args()
 
-    tmpDir = ""
-    keepData = False
-    if(args.s):
-        tmpDir = generate_simulation_iniFiles(args.dir)
-    else:
-        tmpDir = args.dir
-    if(args.k):
-        keepData = True
-
     try:
         #set thread limit before importing numpy
         pool_size = args.t
@@ -146,6 +148,16 @@ def main():
             os.environ['OPENBLAS_NUM_THREADS'] = str(pool_size)
             os.environ["OMP_NUM_THREADS"] = str(pool_size)
         import numpy as np
+
+
+        tmpDir = ""
+        keepData = False
+        if(args.s):
+            tmpDir = generate_simulation_iniFiles(args.dir)
+        else:
+            tmpDir = args.dir
+        if(args.k):
+            keepData = True
 
         parameterFolder = tmpDir
 
