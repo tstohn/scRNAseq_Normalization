@@ -81,7 +81,6 @@ def generate_simulation_iniFiles(iniFile):
     count = 0
     for i in np.arange(start, end, factor):
         i = round(i,2)
-        printToTerminalOnce("File: " + str(i))
         newFile = open(dir_path + "/" + str(count) + ".ini", "a")
         file = open(iniFile, "r")
         line = file.readline()
@@ -96,8 +95,9 @@ def generate_simulation_iniFiles(iniFile):
                 if(variableParameter=="noise"):
                     newFile.write("noise=" + str(i) + "\n")
                 if(variableParameter=="ProteinLevels"):
-                    newLine = line.replace("X", str(i))
-                    newFile.write("noise=" + newLine + "\n")
+                    integerProteinCount = int(i)
+                    newLine = line.replace("X", str(integerProteinCount))
+                    newFile.write(newLine)
             else:
                 #write same line into file
                 newFile.write(line)
