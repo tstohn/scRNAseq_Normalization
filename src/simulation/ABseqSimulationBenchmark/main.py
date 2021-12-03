@@ -40,7 +40,7 @@ def parse_args():
     return(args)
 
 #the newly generated files are written into a tmp directory, there they consist of a name which is basically a number from 0 to <numberOfSimulatedSamples>
-def generate_simulation_iniFiles(iniFile):
+def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
     import numpy as np
     if(os.path.isdir(os.path.realpath(iniFile))):
         printToTerminalOnce("ERROR: Directiory given, but the flag for handling single predefined ini files not set; ABORT SIMULATION")
@@ -79,7 +79,10 @@ def generate_simulation_iniFiles(iniFile):
     file.close()
     
     count = 0
+    fileBenchmarksToKeep.append(0)
     for i in np.arange(start, end, factor):
+        if(len(fileBenchmarksToKeep)==1 and i>=end/2):
+            fileBenchmarksToKeep.append(i)
         i = round(i,2)
         newFile = open(dir_path + "/" + str(count) + ".ini", "a")
         file = open(iniFile, "r")
@@ -105,6 +108,7 @@ def generate_simulation_iniFiles(iniFile):
         count += 1
         newFile.close()
         file.close()
+    fileBenchmarksToKeep.append(count)
     return(dir_path)
 
 def delete_tmp_folder(folder):
@@ -152,8 +156,9 @@ def main():
 
         tmpDir = ""
         keepData = False
+        fileBenchmarksToKeep = []
         if(args.s):
-            tmpDir = generate_simulation_iniFiles(args.dir)
+            tmpDir = generate_simulation_iniFiles(args.dir, fileBenchmarksToKeep)
         else:
             tmpDir = args.dir
         if(args.k):
@@ -174,6 +179,9 @@ def main():
         pool = Pool(pool_size)
         for ini in iniFilePathList:
             pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, keepData))
+            #if the file is not one of those three to keep, delete it
+            if(not( ini.endswith(fileBenchmarksToKeep[0]) or ini.endswith(fileBenchmarksToKeep[1]) or ini.endswith(fileBenchmarksToKeep[2]) )):
+                os.remove(ini)
                 
         pool.close()
         pool.join()
