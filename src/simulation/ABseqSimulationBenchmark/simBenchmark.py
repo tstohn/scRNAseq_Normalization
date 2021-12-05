@@ -256,3 +256,10 @@ class Benchmark():
         for fileName in fileNameList:
             self.combine_files(newSimulationDir, resultDir, fileName)
 
+    def deleteExcessData(self, newSimulationDir, fileBenchmarksToKeep):
+        folderName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))
+        dirName = newSimulationDir + "/" + folderName
+        #if the file is not one of those three to keep, delete it
+        if(not self.keepData and not( folderName.endswith(str(fileBenchmarksToKeep[0])) or folderName.endswith(str(fileBenchmarksToKeep[1])) or folderName.endswith(str(fileBenchmarksToKeep[2])) )):
+            shutil.rmtree(dirName)
+

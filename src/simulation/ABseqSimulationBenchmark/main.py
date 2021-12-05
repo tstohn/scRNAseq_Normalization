@@ -81,8 +81,8 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
     count = 0
     fileBenchmarksToKeep.append(0)
     for i in np.arange(start, end, factor):
-        if(len(fileBenchmarksToKeep)==1 and i>=end/2):
-            fileBenchmarksToKeep.append(i)
+        if(len(fileBenchmarksToKeep)==1 and count>=((end-start)/factor)/2):
+            fileBenchmarksToKeep.append(count)
         i = round(i,2)
         newFile = open(dir_path + "/" + str(count) + ".ini", "a")
         file = open(iniFile, "r")
@@ -108,14 +108,14 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
         count += 1
         newFile.close()
         file.close()
-    fileBenchmarksToKeep.append(count)
+    fileBenchmarksToKeep.append(count-1) #keep the number of the last file
     return(dir_path)
 
 def delete_tmp_folder(folder):
     if(os.path.exists(folder)):
         shutil.rmtree(folder)
 
-def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, keepData):
+def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, keepData, fileBenchmarksToKeep):
     try:
         param = Parameters(ini)
         benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads, keepData)
@@ -123,8 +123,10 @@ def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, ke
         benchmark.moveIntoOneFolder(newSimulationDir)
         benchmark.moveIntoOneFolder(stdoutFile)
         benchmark.copyResultsIntoOneFile(newSimulationDir)
+        benchmark.deleteExcessData(newSimulationDir, fileBenchmarksToKeep) 
+
     except Exception as e: 
-        print("#ERROR MESSAGE: \'" + e + "\'\n")
+        print("#ERROR MESSAGE: \'" + str(e) + "\'\n")
         printToTerminalOnce("\n ERROR: Could not run Benchmark on " + ini + "\n")
 
 def main():
@@ -175,19 +177,19 @@ def main():
         newSimulationDir = "./bin/BENCHMARKED_DATASETS/Simulations_" + str(datetime.now())
         os.makedirs(newSimulationDir)
 
+        printToTerminalOnce(fileBenchmarksToKeep)
         #run this as threads
         pool = Pool(pool_size)
         for ini in iniFilePathList:
-            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, keepData))
-            #if the file is not one of those three to keep, delete it
-            if(not( ini.endswith(fileBenchmarksToKeep[0]) or ini.endswith(fileBenchmarksToKeep[1]) or ini.endswith(fileBenchmarksToKeep[2]) )):
-                os.remove(ini)
-                
+            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, keepData, fileBenchmarksToKeep))
+                 
         pool.close()
         pool.join()
         outfile.close()
-    except:
+
+    except Exception as e: 
         printToTerminalOnce("Benchmark Failed")
+        print("#ERROR MESSAGE: \'" + str(e) + "\'\n")
 
     if(args.s):
         delete_tmp_folder(tmpDir)
