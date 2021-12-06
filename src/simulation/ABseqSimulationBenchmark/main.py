@@ -177,7 +177,6 @@ def main():
         newSimulationDir = "./bin/BENCHMARKED_DATASETS/Simulations_" + str(datetime.now())
         os.makedirs(newSimulationDir)
 
-        printToTerminalOnce(fileBenchmarksToKeep)
         #run this as threads
         pool = Pool(pool_size)
         for ini in iniFilePathList:
