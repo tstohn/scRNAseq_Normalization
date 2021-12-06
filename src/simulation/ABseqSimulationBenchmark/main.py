@@ -174,7 +174,8 @@ def main():
         regex = re.compile('.*\.ini')
         iniFilePathList = [join(str(parameterFolder),x) for x in iniFileList if regex.match(x)]
         #generate a master directory for all experiments
-        newSimulationDir = "./bin/BENCHMARKED_DATASETS/Simulations_" + str(datetime.now())
+        simulationName = os.path.splitext(os.path.basename(args.dir))[0]
+        newSimulationDir = "./bin/BENCHMARKED_DATASETS/Simulations_" + simulationName + "_" + str(datetime.now())
         os.makedirs(newSimulationDir)
 
         #run this as threads
