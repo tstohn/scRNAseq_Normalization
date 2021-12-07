@@ -23,6 +23,7 @@ from functions import *
              is also copied into the folder for normalizations - those files are deleted as well)
         -s: if set we have a SINGLE simulation for each file in the directory, in this case -in MUST BE A DIRECTORY
         -k : if set we keep all simulation and normalization data
+        -d : how often an experiemnt is repeated and averaged, on average this is 5 times
 """
 def parse_args():
 
@@ -33,6 +34,8 @@ def parse_args():
     parser.add_argument('dir', metavar='DIR', type=str)
     parser.add_argument('-s', action='store_false')
     parser.add_argument('-k', action='store_true')
+    parser.add_argument('--d', help='duplicates',
+                        type=int, default=5)
 
 
     args = parser.parse_args()
@@ -115,15 +118,16 @@ def delete_tmp_folder(folder):
     if(os.path.exists(folder)):
         shutil.rmtree(folder)
 
-def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, keepData, fileBenchmarksToKeep):
+def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, duplicates, keepData, fileBenchmarksToKeep):
     try:
-        param = Parameters(ini)
-        benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads, keepData)
-        benchmark.run()
-        benchmark.moveIntoOneFolder(newSimulationDir)
-        benchmark.moveIntoOneFolder(stdoutFile)
-        benchmark.copyResultsIntoOneFile(newSimulationDir)
-        benchmark.deleteExcessData(newSimulationDir, fileBenchmarksToKeep) 
+        for i in range(0,duplicates):
+            param = Parameters(ini)
+            benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads, keepData)
+            benchmark.run()
+            benchmark.moveIntoOneFolder(newSimulationDir)
+            benchmark.moveIntoOneFolder(stdoutFile)
+            benchmark.copyResultsIntoOneFile(newSimulationDir)
+            benchmark.deleteExcessData(newSimulationDir, fileBenchmarksToKeep) 
 
     except Exception as e: 
         print("#ERROR MESSAGE: \'" + str(e) + "\'\n")
@@ -181,7 +185,7 @@ def main():
         #run this as threads
         pool = Pool(pool_size)
         for ini in iniFilePathList:
-            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, keepData, fileBenchmarksToKeep))
+            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, args.d, keepData, fileBenchmarksToKeep))
                  
         pool.close()
         pool.join()

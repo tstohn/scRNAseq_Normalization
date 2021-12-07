@@ -219,6 +219,8 @@ class Benchmark():
     def moveIntoOneFolder(self, newSimulationDir):
         simulationName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))
         if(os.path.exists("./bin/BENCHMARKED_DATASETS/" + simulationName)):
+            if(os.path.exists(newSimulationDir + "/" + simulationName)):
+                shutil.rmtree(newSimulationDir + "/" + simulationName)
             shutil.move("./bin/BENCHMARKED_DATASETS/" + simulationName, newSimulationDir)
 
     def combine_files(self, newSimulationDir, resultDir, fileName):
