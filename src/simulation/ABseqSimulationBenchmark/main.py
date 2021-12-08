@@ -21,8 +21,9 @@ from functions import *
              is generated.
              By default all normalized and simulated datasets are deleted after simulation to not overflow in data (the ini/ tsv file of simulated data
              is also copied into the folder for normalizations - those files are deleted as well)
-        -s: if set we have a SINGLE simulation for each file in the directory, in this case -in MUST BE A DIRECTORY
-        -k : if set we keep all simulation and normalization data
+        -s: if set we have a SINGLE simulation file for all simulations, if false we have several inis and in this case -in MUST BE A DIRECTORY
+            to set to false add <-s> to flag
+        -k : if set we keep all simulation and normalization data, as well as simulated inis
         -d : how often an experiemnt is repeated and averaged, on average this is 5 times
 """
 def parse_args():
@@ -42,6 +43,17 @@ def parse_args():
     
     return(args)
 
+def map_three_ini_values(info, list):
+    elementNum = 0
+    for element in info:
+        if(elementNum == 0):
+            list[0] = float(element)
+        elif(elementNum == 1):
+            list[1] = float(element)
+        elif(elementNum == 2):
+            list[2] = float(element)
+        elementNum += 1
+
 #the newly generated files are written into a tmp directory, there they consist of a name which is basically a number from 0 to <numberOfSimulatedSamples>
 def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
     import numpy as np
@@ -59,21 +71,41 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
     file = open(iniFile, "r")
     line = file.readline()
     start = end = factor = 1
+    start2 = end2 = factor2 = 1
+    value2Set = False
     foundIni = False
     while line:
         if( (not line.startswith("#")) and ("INIRANGE" in line) ):
             info = re.match(("(.+?)INIRANGE=(.*)"), line)
-            variableParameter = str(info[1])        
-            info = str(info[2]).split(",")
-            elementNum = 0
-            for element in info:
-                if(elementNum == 0):
-                    start = float(element)
-                elif(elementNum == 1):
-                    end = float(element)
-                elif(elementNum == 2):
-                    factor = float(element)
-                elementNum += 1
+            variableParameter = str(info[1]) 
+
+            infoArray = str(info[2]).split(";")
+            #if the range itself has several values (so far only 2) parse them seperately
+            if(len(infoArray) > 1):
+                valueList_1 = [start, end, factor]
+                valueList_2 = [start, end, factor]
+
+                info = str(infoArray[0]).split(",")
+                map_three_ini_values(info, valueList_1)
+                info = str(infoArray[1]).split(",")
+                map_three_ini_values(info, valueList_2)
+
+                start = valueList_1[0]
+                end = valueList_1[1]
+                factor = valueList_1[2]
+
+                start2 = valueList_2[0]
+                end2 = valueList_2[1]
+                factor2 = valueList_2[2]
+                value2Set = True
+            else:
+                info = str(info[2]).split(",")
+                valueList = [start, end, factor]
+                map_three_ini_values(info, valueList)
+                start = valueList[0]
+                end = valueList[1]
+                factor = valueList[2]
+
             if(foundIni==True):
                 print("ERROR parsing INIRANGE for Benchmark; foundn several lines with 'INIRANGE', but a simulation can only have a single variable\n")
                 exit()
@@ -84,6 +116,10 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
     count = 0
     fileBenchmarksToKeep.append(0)
     for i in np.arange(start, end, factor):
+        j = 0
+        if value2Set:
+            j = start2 + count*factor2
+
         if(len(fileBenchmarksToKeep)==1 and count>=((end-start)/factor)/2):
             fileBenchmarksToKeep.append(count)
         i = round(i,2)
@@ -103,6 +139,9 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                 if(variableParameter=="ProteinLevels"):
                     integerProteinCount = int(i)
                     newLine = line.replace("X", str(integerProteinCount))
+                    if value2Set:
+                        integerProteinCount2 = int(j)
+                        newLine = newLine.replace("Y", str(integerProteinCount2))
                     newFile.write(newLine)
             else:
                 #write same line into file
@@ -195,7 +234,7 @@ def main():
         printToTerminalOnce("Benchmark Failed")
         print("#ERROR MESSAGE: \'" + str(e) + "\'\n")
 
-    if(args.s):
+    if(args.s and not args.k):
         delete_tmp_folder(tmpDir)
     
 if __name__ == '__main__':
