@@ -78,7 +78,6 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
         if( (not line.startswith("#")) and ("INIRANGE" in line) ):
             info = re.match(("(.+?)INIRANGE=(.*)"), line)
             variableParameter = str(info[1]) 
-
             infoArray = str(info[2]).split(";")
             #if the range itself has several values (so far only 2) parse them seperately
             if(len(infoArray) > 1):
@@ -143,6 +142,9 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                         integerProteinCount2 = int(j)
                         newLine = newLine.replace("Y", str(integerProteinCount2))
                     newFile.write(newLine)
+                if(variableParameter=="proteinNoise"):
+                    newFile.write("proteinNoise=" + str(i) + "\n")
+
             else:
                 #write same line into file
                 newFile.write(line)
