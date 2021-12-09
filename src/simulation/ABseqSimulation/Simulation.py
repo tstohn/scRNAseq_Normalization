@@ -211,6 +211,9 @@ class Parameters():
             elif(str.startswith(line, "noise=")):
                 info = re.match(("noise=(.*)"), line)
                 self.noise = float(info[1].rstrip("\n"))
+            elif(str.startswith(line, "proteinNoise=")):
+                info = re.match(("proteinNoise=(.*)"), line)
+                self.proteinNoise = float(info[1].rstrip("\n"))
             line = file.readline()
 
     def __init__(self, paramter_file):
@@ -542,6 +545,13 @@ class SingleCellSimulation():
     def __perturb(self,data):
 
         printToTerminalOnce("\tAdding random noise to data")
+
+        #pertubation per protein
+        perturbFrame = pd.DataFrame()
+        perturbFrame["ab_id"] = data["ab_id"].unique()
+        perturbFrame["factor"] = np.random.normal(1,self.parameters.proteinNoise,len(perturbFrame))
+        perturbDict = dict(zip(perturbFrame["ab_id"], perturbFrame["factor"]))
+        data["ab_count"] = data["ab_count"] * data["ab_id"].map(perturbDict)
 
         #cell instrinsic pertubation
         randomVector = np.random.normal(1,self.parameters.noise,len(data))
