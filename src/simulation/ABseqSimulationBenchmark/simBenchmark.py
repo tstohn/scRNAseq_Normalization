@@ -100,7 +100,7 @@ class Benchmark():
         if(self.noExplicitelySetThreads):
             subprocess.run(["python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
         else:
-            subprocess.run(["OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
+            subprocess.run(["OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --t 1 --stdout " + self.stdout], shell = True, check = True)
 
         #copy simulations into normnalization folder:
         #from bin/SIMMULATIONS to datasets/
@@ -147,7 +147,7 @@ class Benchmark():
                 if(self.noExplicitelySetThreads):
                     commandString = "Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
                 else:
-                    commandString = "OMP_NUM_THREADS=1 Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
+                    commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
                 try:
                     subprocess.run([commandString], shell = True, check = True)
                 except Exception as e: 
@@ -199,7 +199,7 @@ class Benchmark():
         if(self.noExplicitelySetThreads):
             benchmarkCommand = "python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t -1 " + normResultFilePath
         else:
-            benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1 " + normResultFilePath
+            benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1 " + normResultFilePath
         
         subprocess.run([benchmarkCommand], shell = True, check = True)
 
