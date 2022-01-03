@@ -74,6 +74,10 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
     start2 = end2 = factor2 = 1
     value2Set = False
     foundIni = False
+
+    #INIRANGE IS ALWAYS READ THE SAME WAY:
+    # we have three comma seperated values that describe a range,
+    # we might also have a second range that is seperated by a semicolon
     while line:
         if( (not line.startswith("#")) and ("INIRANGE" in line) ):
             info = re.match(("(.+?)INIRANGE=(.*)"), line)
@@ -131,8 +135,12 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                 continue
             elif(str.startswith(line, variableParameter)):
                 #write new variable line
+
+                #LIBRARY SIZE
                 if(variableParameter=="libSize"):
                     newFile.write("libSize=[1," + str(i) + "]\n")
+
+                #NOISE
                 if(variableParameter=="noise"):
                     newFile.write("noise=" + str(i) + "\n")
                 if(variableParameter=="ProteinLevels"):
@@ -144,7 +152,37 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                     newFile.write(newLine)
                 if(variableParameter=="proteinNoise"):
                     newFile.write("proteinNoise=" + str(i) + "\n")
+                
+                #correlation (factor are easy)
+                if(variableParameter=="proteinCorrelationFactors"):
+                    newCorrelation = float(i)
+                    newLine = line.replace("X", str(newCorrelation))
+                    newFile.write(newLine)
 
+                #the number of correlations is first a triple, then a semicolon seperated triple for the
+                # factor (range)
+                if(variableParameter=="proteinCorrelation"):
+                    printToTerminalOnce(str(i))
+                    if(str.startswith(line, "proteinCorrelationFactors")):
+                        line = file.readline()
+                        continue
+                    #write new correlations
+                    newFile.write("proteinCorrelation=[")
+                    for numberOfProteinCorrelations in range(1,int(i)+1):
+                        newStart = (2*(numberOfProteinCorrelations-1))+1
+                        newEnd = newStart+1
+                        newFile.write("[" + str(newStart) + "+" + str(newEnd) + "]")
+                        if(numberOfProteinCorrelations!=(int(i))):
+                            newFile.write(",")
+                    newFile.write("]\n")  
+
+                    # write sa factor for everyone
+                    newFile.write("proteinCorrelationFactors=[")  
+                    for numberOfProteinCorrelations in range(1,int(i)+1):
+                        newFile.write(str(float(j)))
+                        if(numberOfProteinCorrelations!=(int(i))):
+                            newFile.write(",")
+                    newFile.write("]\n")  
             else:
                 #write same line into file
                 newFile.write(line)

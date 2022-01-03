@@ -83,7 +83,8 @@ class Parameters():
     batchFactors=None
     noise=0.0
     noiseExtrinsic=0.0
-
+    proteinNoise=0.0
+    
     proteinCorrelations = []
     proteinDistributions = {}
 
