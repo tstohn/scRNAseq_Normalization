@@ -162,7 +162,6 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                 #the number of correlations is first a triple, then a semicolon seperated triple for the
                 # factor (range)
                 if(variableParameter=="proteinCorrelation"):
-                    printToTerminalOnce(str(i))
                     if(str.startswith(line, "proteinCorrelationFactors")):
                         line = file.readline()
                         continue
