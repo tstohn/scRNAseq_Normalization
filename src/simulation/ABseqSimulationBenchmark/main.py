@@ -25,6 +25,7 @@ from functions import *
             to set to false add <-s> to flag
         -k : if set we keep all simulation and normalization data, as well as simulated inis
         -d : how often an experiemnt is repeated and averaged, on average this is 5 times
+        -t : threads
 """
 def parse_args():
 
