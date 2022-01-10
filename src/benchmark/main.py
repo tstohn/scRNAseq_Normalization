@@ -109,6 +109,14 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
             except Exception as e: 
                 print(e)
                 printToTerminalOnce("\n ERROR: Spearman Correlelation for proteins of type " + spearmanFilter + " failed\n")
+    else:
+
+        #SPEARMAN CORRELATION WITHOUT GROUNDTRUTH
+        try:
+            benchmark.ab_spearman_correlation() # make RMSD of correlation differences => barplot
+        except Exception as e: 
+            print(e)
+            printToTerminalOnce("\n ERROR: Spearman correlation failed\n")
 
 def main():
     if(len(sys.argv) < 2):
