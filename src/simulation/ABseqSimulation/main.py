@@ -37,7 +37,9 @@ def main():
     sim = SingleCellSimulation(param)
     sim.simulateData()
     sim.save_data()
-    outfile.close()
+
+    if(args.stdout != ""):
+        outfile.close()
 
 if __name__ == '__main__':
     main()
