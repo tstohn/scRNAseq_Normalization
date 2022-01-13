@@ -14,6 +14,7 @@ deployrUtils::deployrPackage("splitstackshape")
 source(here("src/normalization", "functions.R"))
 library("edgeR")
 suppressPackageStartupMessages(deployrUtils::deployrPackage("compositions"))
+library(Seurat)
 
 # NORNALIZATION FUNCTIONS
 
@@ -161,6 +162,68 @@ run_tmm<-function(data)
   
   return(normalized_data)
 }
+
+run_clr_seurat<-function(data)
+{
+  print("RUNNING CLR SEURAT NORMALIZATION")
+  #Seurat first creates a SeuratObject
+  #it takes data in a matrix of features X samples
+  countdata <- data %>%
+    select(sample_id, ab_id, ab_count) %>%
+    pivot_wider(names_from = ab_id, values_from = ab_count ) %>%
+    column_to_rownames("sample_id") %>%
+    as.matrix() %>% 
+    t()
+  #create seurat object
+  seurat_data <- CreateSeuratObject(counts = countdata)
+  #normalize
+  normalized_data <- NormalizeData(seurat_data, normalization.method = "CLR")
+  #regain a dataframe of features X samples
+  normalized_data_dgCMatrix <- normalized_data@assays$RNA@data
+  normalized_data_frame <- as.data.frame(as.matrix(normalized_data_dgCMatrix))
+  
+  final_normalized_data <- normalized_data_frame %>%
+    tibble::rownames_to_column(var = "ab_id") %>%
+    pivot_longer(-ab_id, names_to = "sample_id", values_to = "ab_count_normalized")
+    
+  #map the results to our origional data frame
+  combined_data <- left_join(data, final_normalized_data, by = c("sample_id", "ab_id"))
+  
+  return(combined_data)
+}
+
+run_sctransform<-function(data, batchEffect) 
+{
+  if(batchEffect)
+  {
+    print("RECENTLY NO DEDICATED BATCH EFF REMOVAL FOR SCTRANSFORM")
+  }
+  print("RUNNING SCTRANSFORM NORMALIZATION FROM SEURAT")
+  #Seurat first creates a SeuratObject
+  #it takes data in a matrix of features X samples
+  countdata <- data %>%
+    select(sample_id, ab_id, ab_count) %>%
+    pivot_wider(names_from = ab_id, values_from = ab_count ) %>%
+    column_to_rownames("sample_id") %>%
+    as.matrix() %>% 
+    t()
+  #create seurat object
+  seurat_data <- CreateSeuratObject(counts = countdata)
+  #normalize
+  normalized_data <- SCTransform(seurat_data)
+  #regain a dataframe of features X samples
+  #SCTransformed values are in the new assay SCT
+  normalized_data_dgCMatrix <- normalized_data@assays$SCT@data
+  normalized_data_frame <- as.data.frame(as.matrix(normalized_data_dgCMatrix))
+  
+  final_normalized_data <- normalized_data_frame %>%
+    tibble::rownames_to_column(var = "ab_id") %>%
+    pivot_longer(-ab_id, names_to = "sample_id", values_to = "ab_count_normalized")
+  
+  #map the results to our origional data frame
+  combined_data <- left_join(data, final_normalized_data, by = c("sample_id", "ab_id"))
+  
+  return(combined_data)
 
 run_leave_one_out_tmm<-function(data)
 {
@@ -390,7 +453,16 @@ run_normalization<-function(dataset, method)
   }
   else if(method=="SCTRANSFORM")
   {
-
+    #perform batch correction within SCTRANSFORM
+    batchEffect = FALSE
+    if(dataset_processing_variables[3] == 1)
+    {
+      batchEffect = TRUE
+    }
+    normalized_data<- data %>% 
+      run_sctransform(batchEffect) 
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/LIBSIZE.tsv")
+    write_tsv(normalized_data, file=output_table)
   }
   else if(method=="CLR_COMPOSITIONS")
   {
@@ -402,6 +474,18 @@ run_normalization<-function(dataset, method)
       normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
     }
     output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLR.tsv")
+    write_tsv(normalized_data, file=output_table)
+  }
+  else if(method=="CLR_SEURAT")
+  {
+    #CLR is alraedy a log transformation
+    normalized_data<- data %>% 
+      run_clr_seurat()
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLR_SEURAT.tsv")
     write_tsv(normalized_data, file=output_table)
   }
   else if(method=="LEAVE_ONE_OUT_TMM")
