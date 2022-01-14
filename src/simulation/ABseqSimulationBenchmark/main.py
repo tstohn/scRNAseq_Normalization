@@ -119,6 +119,7 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
     
     count = 0
     fileBenchmarksToKeep.append(0)
+
     for i in np.arange(start, end, factor):
         j = 0
         if value2Set:
@@ -197,7 +198,8 @@ def delete_tmp_folder(folder):
     if(os.path.exists(folder)):
         shutil.rmtree(folder)
 
-def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, duplicates, keepData, fileBenchmarksToKeep):
+def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, duplicates, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations):
+    printToTerminalOnce("#  RUNNING SIMULATION[" + str(recentSimulationNumber) + "/" + str(numberOfSimulations) + "]")
     try:
         for i in range(0,duplicates):
             param = Parameters(ini)
@@ -263,9 +265,12 @@ def main():
 
         #run this as threads
         pool = Pool(pool_size)
+        numberOfSimulations = len(iniFilePathList)
+        recentSimulationNumber = 1
         for ini in iniFilePathList:
-            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, args.d, keepData, fileBenchmarksToKeep))
-                 
+            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, args.d, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations))
+            recentSimulationNumber = recentSimulationNumber + 1
+
         pool.close()
         pool.join()
         outfile.close()

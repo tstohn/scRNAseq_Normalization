@@ -224,6 +224,7 @@ run_sctransform<-function(data, batchEffect)
   combined_data <- left_join(data, final_normalized_data, by = c("sample_id", "ab_id"))
   
   return(combined_data)
+}
 
 run_leave_one_out_tmm<-function(data)
 {
