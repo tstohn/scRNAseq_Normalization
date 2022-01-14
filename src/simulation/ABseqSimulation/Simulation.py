@@ -88,6 +88,8 @@ class Parameters():
     proteinCorrelations = []
     proteinDistributions = {}
 
+    cellABCountAtGroundtruth = {}
+
     """ PARAMETERS
         rangeVector: a vector of quadruples(range, number, mean, std) for Abs of different distributions
         abDuplicates: to simulate the usage of several tags for one AB
@@ -261,6 +263,8 @@ class SingleCellSimulation():
                 proteinDist = self.parameters.ProteinDist(mu, size)
                 self.parameters.proteinDistributions[abName] = proteinDist
         
+        self.cellABCountAtGroundtruth = proteinCountMatrix.sum(axis = 1)
+
         proteinCountMatrix = proteinCountMatrix.reset_index().rename(columns={ 'index' : 'sample_id'})
         proteinCountMatrix = proteinCountMatrix.melt(id_vars = ["sample_id"], var_name="ab_id", value_name="ab_count")
         return(proteinCountMatrix)
@@ -302,6 +306,25 @@ class SingleCellSimulation():
         self.groundTruthData = concatedTreatments
 
         return(concatedTreatments)
+
+    def __rescale_AB_counts(self, data):
+
+        #calculate new total AB count per sample
+        newToalABCount = {}
+        for sampleID in (data["sample_id"]).unique():
+            newToalABCount[sampleID] = data.loc[data['sample_id'] == sampleID, 'ab_count'].sum()
+
+        #for every AB of this sample, rescale by factor diff
+        for sample in (data["sample_id"]).unique():
+            #calculate diff between new and od count
+            diff = self.cellABCountAtGroundtruth[sample] / newToalABCount[sample]
+
+            for ab in (data["ab_id"]).unique():
+                data.loc[data["sample_id"] == sample, "ab_count"] *= diff
+
+        #round everything down
+        data['ab_count'] = data['ab_count'].apply(np.round)
+        return(data)
 
     """ model batch effect """
     def __insert_batch_effect(self, data):
@@ -577,9 +600,10 @@ class SingleCellSimulation():
     2. simulates the protein count detection
     """
     def simulateData(self):
-
+        
         #generate ground truth of the protein levels in each cell
         self.__generateGroundTruth(self.parameters)
+
         #add additional features into ground truth data
         if(len(self.parameters.proteinCorrelations) > 0):
             self.__insert_correlations_between_proteins(self.groundTruthData)
@@ -587,6 +611,10 @@ class SingleCellSimulation():
             self.__insert_treatment_effect(self.groundTruthData)
         if(self.parameters.abDuplicates > 1):
             self.groundTruthData = self.__insert_ab_duplicates(self.groundTruthData)
+        
+        #rescale to origional reads per sample; not used at the moment
+        #it seems like scatterplots show corelations for wanted and no correlations
+        #for unwated with and without rescaling
 
         #add additional data pertubations
         perturbedData = self.groundTruthData.copy(deep=True)
