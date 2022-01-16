@@ -124,6 +124,9 @@ class NormalizedDataHandler:
         self.rmsd_sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/spearmanRMSD.tsv", "w+")
         self.rmsd_sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATIONS_RMSD" + "\n")
 
+        self.abCorr = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/ABSpearmanCoeff.tsv", "w+")
+        self.abCorr.write("NORMALIZATION_METHOD" + "\t" + "AB1" + "\t" + "AB2" + "\t" + "GroundtruthCorr" "\t" + "NormCorr\n")
+
         self.dataset_name = folder_name
         self.folder_path = ("bin/BENCHMARKED_DATASETS/"+folder_name+"/")
 
@@ -349,16 +352,25 @@ class NormalizedDataHandler:
             data_subset = data.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
             d_pivot=data_subset.pivot(index = "sample_id", columns='ab_id', values='ab_count_normalized')
             columns = d_pivot.columns.tolist()
-            correlations = {}
+
+            #dataframe to fill with spearkman values
+            column_names = ["index", "SPvalues", "Pvalues", "AB1", "AB2"]
+            correlations = pd.DataFrame(columns = column_names)
 
             for col_a, col_b in itertools.combinations(columns, 2):
-                correlations[col_a + '_' + col_b] = stats.spearmanr(d_pivot.loc[:, col_a], d_pivot.loc[:, col_b])
 
-            result = pd.DataFrame.from_dict(correlations, orient='index')
-            result.columns = ['SPvalues', 'Pvalues']
-            result.reset_index(inplace=True)
+                SPvalues, Pvalues = stats.spearmanr(d_pivot.loc[:, col_a], d_pivot.loc[:, col_b])
+                newIndex = col_a + '_' + col_b
 
-            return(result)
+                newCorrLine = {'index': newIndex, 'SPvalues': SPvalues, 'Pvalues': Pvalues, 'AB1': col_a, 'AB2': col_b}
+                correlations = correlations.append(newCorrLine, ignore_index = True)
+
+            printToTerminalOnce(correlations)
+            return(correlations)
+
+    def save_all_correlations(self, data, key):
+        for row in data.itertuples():
+            self.abCorr.write(key + "\t" + row.AB1 + "\t" + row.AB2 + "\t" + str(round(row.SPvalues, 4)) + "\t" + str(round(row.SPvalues_norm, 4)) + "\n")
 
     def ab_spearman_correlation_graph(self, filter = ""):
         plt.figure(figsize=(16,10))
@@ -396,7 +408,7 @@ class NormalizedDataHandler:
             data = self.data[key].copy()
             #calculate same dataFrame and add GroundTruth to it
             normCorrelations = self.__calculate_all_spearman_correlations(data)
-            normCorrelations.columns = ['index','SPvalues_norm', 'Pvalues_norm']
+            normCorrelations.columns = ['index','SPvalues_norm', 'Pvalues_norm', 'AB1_norm', 'AB2_norm']
 
             #dropping nan values, important for e.g. subsampling
             groundTruthCorrelations.dropna(subset = ["SPvalues"], inplace=True)
@@ -409,6 +421,9 @@ class NormalizedDataHandler:
             rmsd = math.sqrt(mse)
             normRMSDData[key] = rmsd
             self.rmsd_sp_results.write(key + "\t"+ str(round(rmsd,4)) + "\n")
+
+            #wite all correlations to file for AB pairs
+            self.save_all_correlations(result, key)
 
         #draw barplot of all RMSDs
         values = normRMSDData.values()
