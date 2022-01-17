@@ -54,7 +54,7 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
     treatmentNum = 1
     dataTmp = pd.read_csv(dataset[0], sep = '\t')
     treatmentNum = len(unique(dataTmp["cluster_id"]))
-
+    
     if(treatmentNum > 1):
         try:
             benchmark.run_treatment_classification()

@@ -188,7 +188,7 @@ run_clr_seurat<-function(data)
     
   #map the results to our origional data frame
   combined_data <- left_join(data, final_normalized_data, by = c("sample_id", "ab_id"))
-  
+  print(combined_data)
   return(combined_data)
 }
 
@@ -462,7 +462,7 @@ run_normalization<-function(dataset, method)
     }
     normalized_data<- data %>% 
       run_sctransform(batchEffect) 
-    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/LIBSIZE.tsv")
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/SCTRANSFORM.tsv")
     write_tsv(normalized_data, file=output_table)
   }
   else if(method=="CLR_COMPOSITIONS")
@@ -486,7 +486,7 @@ run_normalization<-function(dataset, method)
     {
       normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
     }
-    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLR_SEURAT.tsv")
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLRSEURAT.tsv")
     write_tsv(normalized_data, file=output_table)
   }
   else if(method=="LEAVE_ONE_OUT_TMM")

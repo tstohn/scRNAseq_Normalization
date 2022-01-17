@@ -365,7 +365,6 @@ class NormalizedDataHandler:
                 newCorrLine = {'index': newIndex, 'SPvalues': SPvalues, 'Pvalues': Pvalues, 'AB1': col_a, 'AB2': col_b}
                 correlations = correlations.append(newCorrLine, ignore_index = True)
 
-            printToTerminalOnce(correlations)
             return(correlations)
 
     def save_all_correlations(self, data, key):
