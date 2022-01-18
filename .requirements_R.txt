@@ -5,6 +5,5 @@ gplots
 grid
 scales
 tidyverse
-Rcpp
 Seurat
 
