@@ -166,6 +166,11 @@ run_tmm<-function(data)
 run_clr_seurat<-function(data)
 {
   print("RUNNING CLR SEURAT NORMALIZATION")
+  #Seurat fails for underscores in feature names (therefore temporarily substitute those with a rare char - 
+  #hope no one uses this in their AB names :D)
+  data <- data %>%
+    mutate(ab_id = gsub('_','\\Ω', ab_id))
+  
   #Seurat first creates a SeuratObject
   #it takes data in a matrix of features X samples
   countdata <- data %>%
@@ -188,6 +193,11 @@ run_clr_seurat<-function(data)
     
   #map the results to our origional data frame
   combined_data <- left_join(data, final_normalized_data, by = c("sample_id", "ab_id"))
+  
+  #resubstitute values
+  data <- data %>%
+    mutate(ab_id = gsub('\\Ω','_', ab_id))
+  
   print(combined_data)
   return(combined_data)
 }
