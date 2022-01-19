@@ -177,7 +177,7 @@ run_clr_seurat<-function(data)
   #create seurat object
   seurat_data <- CreateSeuratObject(counts = countdata)
   #normalize
-  normalized_data <- NormalizeData(seurat_data, normalization.method = "CLR")
+  normalized_data <- NormalizeData(seurat_data, normalization.method = "CLR", margin = 2)
   #regain a dataframe of features X samples
   normalized_data_dgCMatrix <- normalized_data@assays$RNA@data
   normalized_data_frame <- as.data.frame(as.matrix(normalized_data_dgCMatrix))
