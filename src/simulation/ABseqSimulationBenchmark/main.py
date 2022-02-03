@@ -21,11 +21,11 @@ from functions import *
              is generated.
              By default all normalized and simulated datasets are deleted after simulation to not overflow in data (the ini/ tsv file of simulated data
              is also copied into the folder for normalizations - those files are deleted as well)
-        -s: if set we have a SINGLE simulation file for all simulations, if false we have several inis and in this case -in MUST BE A DIRECTORY
-            to set to false add <-s> to flag
+        -s: add flag <-s> to use a directory instead of a single ini files with ranges
+            if s variable is set we have a SINGLE simulation file for all simulations (default it is set), if false we have several inis and in this case -in MUST BE A DIRECTORY
         -k : if set we keep all simulation and normalization data, as well as simulated inis
-        -d : how often an experiemnt is repeated and averaged, on average this is 5 times
-        -t : threads
+        --d : how often an experiemnt is repeated and averaged, on average this is 5 times
+        --t : threads
 """
 def parse_args():
 
