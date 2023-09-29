@@ -465,3 +465,66 @@ getDataWithCountsForEachAB<-function()
   hist(oldData$ReadsPerSingleCell, breaks = 80000, xlim = c(0,10))
   
   x<- data[data$ReadsPerSingleCell>1,]
+  
+##########################################################
+# ANALYSIS ONLY ON CELLS WITH MANY READS
+##########################################################
+  #keep only cells with > 200 protein counts
+  xcells <- data_RUN7 %>%
+    group_by(SingleCell_BARCODE) %>%
+    mutate(sum = sum(AB_COUNT)) %>%
+    mutate(diffAbSum = n()) %>%
+    select(SingleCell_BARCODE, sum, diffAbSum) %>%
+    ungroup() %>%
+    unique()
+  best_10_thous_ells <- xcells[xcells$sum>100 & xcells$diffAbSum>10,]
+  cellData <- data_RUN7[data_RUN7$SingleCell_BARCODE %in% best_10_thous_ells$SingleCell_BARCODE,]
+  coutTopCells <- cellData %>%
+    group_by(SingleCell_BARCODE) %>%
+    mutate(sum = sum(AB_COUNT)) %>%
+    select(SingleCell_BARCODE, sum) %>%
+    ungroup() %>%
+    unique()
+  hist(coutTopCells$sum, breaks = 100000, xlim=c(0,1000))
+  hist(cellData[cellData$AB_BARCODE=="GAPDH",]$AB_COUNT, breaks = 10000, xlim=c(0,200))
+  
+  cellData <- cellData %>% 
+    group_by(SingleCell_BARCODE) %>%
+    mutate(sum = sum(AB_COUNT)) %>%
+    ungroup() %>%
+    mutate(norm_count = AB_COUNT/sum)
+  
+  #make a matrix for median
+  interestingProteins <- cellData[cellData$AB_BARCODE == "pS6" | cellData$AB_BARCODE == "pAKT" | cellData$AB_BARCODE == "pERK1/2" |cellData$AB_BARCODE == "p4EBP1",]
+  qualityData <- interestingProteins %>%
+    group_by(AB_BARCODE, TREATMENT) %>%
+    mutate(median = median(norm_count)) %>%
+    ungroup() %>%
+    select(AB_BARCODE, TREATMENT, median) %>%
+    unique() %>%
+    pivot_wider(names_from = TREATMENT, values_from = median) %>%
+    column_to_rownames("AB_BARCODE")
+  #heatmap
+  x <- qualityData[c("untreated", "AZD6244", "BEZ235")]
+  heatmapInput<-as.matrix(x)
+  col_panel<-colorpanel(1000, low="black", high="yellow")
+  heatmap.2(heatmapInput, scale='none', col = cividis::cividis_pal(), trace = "none", dendrogram = "none", cexRow = 0.8, cexCol = 0.9, Rowv=FALSE,
+            Colv=FALSE)
+  
+  #boxplot for a protein
+  cellData$AB_BARCODE <- gsub('\\s+', '', cellData$AB_BARCODE)
+  dataTmp <- cellData[cellData$AB_BARCODE == "pS6",]
+  dataTmp<-dataTmp[dataTmp$AB_COUNT<50,]
+  ggplot(data = dataTmp, aes(x = TREATMENT, y = AB_COUNT)) +geom_boxplot() + geom_jitter(width = 0.05, alpha = 0.1)
+
+  cellData$AB_BARCODE <- gsub('\\s+', '', cellData$AB_BARCODE)
+  ggData <- cellData[cellData$AB_BARCODE=="p4EBP1",]
+  ggplot(ggData, aes(x = norm_count, fill = TREATMENT)) + 
+    geom_histogram(bins = 70, position = "identity", alpha = 0.8) + 
+    theme_minimal() + ggtitle("Guide Read Count Distribution") + xlab("Number of reads per single cell") +
+    ylab("Frequency") + xlim(0,0.3)
+  
+  
+  
+  
+  
