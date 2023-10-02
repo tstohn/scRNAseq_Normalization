@@ -46,6 +46,7 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
 
     benchmark = NormalizedDataHandler(dataset, groundtruth, deleteBenchmark, threadsSklearn)
 
+    '''
     #additional visualizations
     benchmark.draw_tsne()
     benchmark.calculate_MMD_between_treatments()
@@ -61,7 +62,7 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
         except Exception as e: 
             print(e)
             printToTerminalOnce("\n ERROR: Treatment classification failed\n")
-
+'''
     if(groundtruth):
         params = Simulation.Parameters(iniFile)
 

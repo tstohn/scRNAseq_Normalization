@@ -1,4 +1,5 @@
 #!/usr/bin/env Rscript
+library(deployrUtils)
 
 #parameters: 
 # 1. <normalization method>

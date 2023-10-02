@@ -14,6 +14,7 @@ def parse_args():
     return(args)
 
 def main():
+    print("Starting Simulation:\n")
 
     args = parse_args()
     parameter_file = args.dir
@@ -32,7 +33,6 @@ def main():
         os.environ["NUMEXPR_NUM_THREADS"] = str(args.t) # export NUMEXPR_NUM_THREADS=6
     from Simulation import SingleCellSimulation, Parameters #library imports numpy, need to set environment variables first
 
-    print("Starting Simulation:")
     param = Parameters(parameter_file)
     sim = SingleCellSimulation(param)
     sim.simulateData()

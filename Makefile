@@ -37,9 +37,8 @@ install_requirements:
 	. ./scRNAseq/bin/activate && \
 	pip3 install -r .requirements_Py.txt
 
-
 test_simulation:
-	python3 ./src/simulation/ABseqSimulation/main.py ./examples/simulation.ini
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./examples/simulation.ini
 
 test_simulation_benchmark:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py --t 2 ./test/data/SimulationFolder/

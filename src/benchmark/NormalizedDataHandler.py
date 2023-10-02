@@ -3,7 +3,7 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 import shutil
-from cv2 import rotate
+#from cv2 import rotate
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,6 +14,7 @@ import itertools
 import math
 import random
 import collections
+from ctypes import *
 
 import sklearn
 from sklearn.datasets import make_classification
@@ -44,8 +45,8 @@ class NormalizedDataHandler:
         #organize data
         d_pivot=data.pivot(index='sample_id', columns='ab_id', values='ab_count_normalized')
         d_organized = pd.DataFrame(d_pivot.to_records())
-        feature_array = d_organized.drop('sample_id',1).values.tolist()
-        feature_ids = d_organized.drop('sample_id',1).columns.tolist()
+        feature_array = d_organized.drop('sample_id', axis=1).values.tolist()
+        feature_ids = d_organized.drop('sample_id', axis=1).columns.tolist()
 
         #assert no nans imported
         array_sum = np.sum(feature_array)
@@ -245,8 +246,7 @@ class NormalizedDataHandler:
     def __draw_tsne(self, data_name):
         X=self.class_data.get(data_name, {}).get('X')
         Y=self.class_data.get(data_name, {}).get('Y')
-
-        tsne = TSNE(n_components=2, verbose=0, perplexity=30, n_iter=400).fit_transform(X)
+        tsne = TSNE(n_components=2, verbose=0, perplexity=30, n_iter=400).fit_transform(np.array(X))
 
         tsne_df = pd.DataFrame({'X':tsne[:,0],
                         'Y':tsne[:,1],
@@ -356,15 +356,13 @@ class NormalizedDataHandler:
             #dataframe to fill with spearkman values
             column_names = ["index", "SPvalues", "Pvalues", "AB1", "AB2"]
             correlations = pd.DataFrame(columns = column_names)
-
             for col_a, col_b in itertools.combinations(columns, 2):
 
                 SPvalues, Pvalues = stats.spearmanr(d_pivot.loc[:, col_a], d_pivot.loc[:, col_b])
                 newIndex = col_a + '_' + col_b
 
-                newCorrLine = {'index': newIndex, 'SPvalues': SPvalues, 'Pvalues': Pvalues, 'AB1': col_a, 'AB2': col_b}
-                correlations = correlations.append(newCorrLine, ignore_index = True)
-
+                newCorrLine = pd.DataFrame.from_dict({'index': [newIndex], 'SPvalues': [SPvalues], 'Pvalues': [Pvalues], 'AB1': [col_a], 'AB2': [col_b]}, orient='columns')
+                correlations = pd.concat([correlations, newCorrLine], ignore_index = True)
             return(correlations)
 
     def save_all_correlations(self, data, key):

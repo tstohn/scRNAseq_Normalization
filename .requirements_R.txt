@@ -1,9 +1,9 @@
+deployrUtils
 dplyr
 edgeR
 ggplot2
 gplots
 grid
 scales
-tidyverse
 Seurat
-
+tidyverse

@@ -100,6 +100,11 @@ class Parameters():
         file = open(paramFile, "r")
         line = file.readline()
         while line:
+
+            if( not(line.startswith("#")) and ("INIRANGE" in line) ):
+                print("ERROR: INI-FILE contains an INIRANGE-variable, those variables can only be used for BENCHMARK INI-FILES to create a range of values, that are then written in its own INI file \
+                      for the simulation. Here, we are in the simulation functionality, which only takes INI-FILES with fixed parameters (no ranges!!)")
+                exit()
             if(str.startswith(line, "ProteinLevels")):
                 info = re.match(("ProteinLevels=\[(.*)\]"), line)
                 info = str(info[1]).split(";")
@@ -645,7 +650,7 @@ class SingleCellSimulation():
     """ SAVE THE DATA """
     def save_data(self):
         #safe data
-        printToTerminalOnce("\tSave Data")
+        printToTerminalOnce("\tSave Data\n")
 
         if not os.path.isdir(self.output_dir):
             os.makedirs(self.output_dir)
@@ -653,5 +658,5 @@ class SingleCellSimulation():
         
         self.simulatedData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_SIMULATED.tsv", sep='\t', index = False)
         self.groundTruthData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_GROUNDTRUTH.tsv", sep='\t', index = False)
-        printToTerminalOnce("\tData saved")
+        printToTerminalOnce("\tData saved\n")
 

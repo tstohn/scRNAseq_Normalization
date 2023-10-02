@@ -111,7 +111,7 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                 factor = valueList[2]
 
             if(foundIni==True):
-                print("ERROR parsing INIRANGE for Benchmark; foundn several lines with 'INIRANGE', but a simulation can only have a single variable\n")
+                printToTerminalOnce("ERROR parsing INIRANGE for Benchmark; foundn several lines with 'INIRANGE', but a simulation can only have a single variable\n")
                 exit()
             foundIni = True
         line = file.readline()
@@ -255,7 +255,7 @@ def main():
 
         #list all ini files
         iniFileList = [f for f in listdir(parameterFolder) if isfile(join(parameterFolder, f))]
-
+        
         regex = re.compile('.*\.ini')
         iniFilePathList = [join(str(parameterFolder),x) for x in iniFileList if regex.match(x)]
         #generate a master directory for all experiments

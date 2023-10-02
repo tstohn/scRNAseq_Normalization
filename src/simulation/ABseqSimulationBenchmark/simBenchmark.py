@@ -92,9 +92,10 @@ class Benchmark():
     """ RUN a complete benchmark from data simulation up to Normalization evaluation """
     def run(self):
         #activate environment
-        subprocess.run(["./source", "scRNAseq/bin/activate"], shell=True)
+        subprocess.run(["source scRNAseq/bin/activate"], shell=True)
 
-        #call simulations
+        #1.) call simulations
+        #__________________
         printToTerminalOnce("RUN SIMULATION")
 
         if(self.noExplicitelySetThreads):
@@ -106,19 +107,23 @@ class Benchmark():
         #from bin/SIMMULATIONS to datasets/
         simulationFilePath = "./bin/SIMULATIONS/"
 
+        # ini files that simply maps the cooumn names from data.table to the unsed parameters in normalization
         simulationName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))
         simulatedFileName = simulationName + "_SIMULATED.tsv"
         
         normOriginFilePath = self.parameters.datasets + "/" + simulationName + ".tsv"
         simulationResultFilePath = simulationFilePath + simulatedFileName
 
+        #copy simulated file in ./bin/SIMULATIONS/file_SIMULATWED.tsv into the folder for files to normalize
+        #this file is stated in github dir ini file: for us 2_preprocessed
         commandString = "cp " + simulationResultFilePath + " " + normOriginFilePath
         subprocess.run([commandString], shell = True, check = True)
 
         #generate a ini file next to it
         self.__generateNormalizationIni(normOriginFilePath)
 
-        #run normalizations
+        #2.) run normalizations
+        #__________________
         printToTerminalOnce("RUN NORMALIZATION")
         if( not self.parameters.normMethods ):
             printToTerminalOnce("No normalization methods given!")
@@ -191,28 +196,32 @@ class Benchmark():
             simulatedDataStream.close()
         except Exception as e: 
             print(e)
-            printToTerminalOnce("ERROR for moving simulated and groundTruth data for " + self.parameters.iniFile)
+            printToTerminalOnce("ERROR for moving simulated and groundTruth data for " + self.parameters.iniFile + "\n")
 
         #run normalization benchmark
-        normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
-        benchmarkCommand = ""
-        if(self.noExplicitelySetThreads):
-            benchmarkCommand = "python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t -1 " + normResultFilePath
-        else:
-            benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1 " + normResultFilePath
-        
-        subprocess.run([benchmarkCommand], shell = True, check = True)
+        try:
+            normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
+            benchmarkCommand = ""
+            if(self.noExplicitelySetThreads):
+                benchmarkCommand = "python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t -1 " + normResultFilePath
+            else:
+                benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1 " + normResultFilePath
 
-        if(not self.keepData):
-            #delete folder of normalized data
-            subprocess.run("rm -r " + folder_path, shell = True, check = True)
-            #delete simulated/ groundtruth data
-            subprocess.run("rm -r " + simulationResultFilePath, shell = True, check = True)
-            subprocess.run("rm -r " + groundTruthResultFilePath, shell = True, check = True)
-            #delete the ini/tsv file copied into normalization folder
-            iniFileToDelte = removesuffix(normOriginFilePath,'.tsv') + ".ini"
-            subprocess.run("rm -r " + normOriginFilePath, shell = True, check = True)
-            subprocess.run("rm -r " + iniFileToDelte, shell = True, check = True)
+            subprocess.run([benchmarkCommand], shell = True, check = True)
+
+            if(not self.keepData):
+                #delete folder of normalized data
+                subprocess.run("rm -r " + folder_path, shell = True, check = True)
+                #delete simulated/ groundtruth data
+                subprocess.run("rm -r " + simulationResultFilePath, shell = True, check = True)
+                subprocess.run("rm -r " + groundTruthResultFilePath, shell = True, check = True)
+                #delete the ini/tsv file copied into normalization folder
+                iniFileToDelte = removesuffix(normOriginFilePath,'.tsv') + ".ini"
+                subprocess.run("rm -r " + normOriginFilePath, shell = True, check = True)
+                subprocess.run("rm -r " + iniFileToDelte, shell = True, check = True)
+        except Exception as e: 
+            print(e)
+            printToTerminalOnce("ERROR Benchmarking of normalized files failed for: " + self.parameters.iniFile)
 
     #every run of a simulation -> normalizaitons -> benchmark results in a folder in bin/BENCHMARK
     #all those folers are beeing stored in a foler called SIMULATIONS_dateTime to keep better track
