@@ -44,7 +44,7 @@ class NormalizationGraph:
             data_table = data_table.pivot(index = "sample_id", columns='ab_id', values='ab_count')
             corr_table = pd.DataFrame(columns = ["ab_id", "ab_id_2", "correlation"])
             for x,y in (combinations(data_table.columns,2)):
-                corr_table = corr_table.append(pd.DataFrame({"ab_id":[x], "ab_id_2":[y], "correlation":[stats.pearsonr(data_table[x], data_table[y])[0]]}))
+                corr_table = pd.concat([corr_table, pd.DataFrame({"ab_id":[x], "ab_id_2":[y], "correlation":[stats.pearsonr(data_table[x], data_table[y])[0]]})])
 
         #filter duplicates from correlation matrix
         filter_cols = corr_table.filter(like='ab_id').values
@@ -128,6 +128,8 @@ class NormalizationGraph:
         print("Found Clique: ")
         print(max_clique)
 
+        if(not max_clique):
+            print("Could not Graph normalize data: NO NON-CORRELATED PROTEINS FOUND!!!")
         #normalize by using these feaures
         feature_mean = dict()
         for feature in max_clique:
@@ -154,7 +156,7 @@ class NormalizationGraph:
                 sample_data["ab_count_normalized"] = np.log(sample_data["ab_count_normalized"]*avg_scaling_factor)
             else:
                 sample_data["ab_count_normalized"] = (sample_data["ab_count_normalized"]*avg_scaling_factor)
-            normalized_data_frame = normalized_data_frame.append(sample_data)
+            normalized_data_frame = pd.concat([normalized_data_frame, sample_data])
 
         self.data = normalized_data_frame
         return(normalized_data_frame)
@@ -207,7 +209,7 @@ class NormalizationGraph:
                     sample_vector = np.concatenate(sample_vector, np.log(sample_data["ab_count"]*avg_scaling_factor))
                 else:
                     sample_vector = np.concatenate((sample_vector, (sample_data["ab_count"]*avg_scaling_factor)))
-                normalized_data_frame = normalized_data_frame.append(sample_data)
+                normalized_data_frame = pd.concat([normalized_data_frame, sample_data])
             
             normVector_list.append(sample_vector)
             weight_list.append(len(clique))      

@@ -64,6 +64,7 @@ def run_normalization_on_dataset(data_dir, correlation, output_dir = ""):
         print(e)
         print("Could not normalize dataset " + data_dir)
         return
+
     if(output_dir):
         ensure_dir(output_dir)
         result.to_csv(output_dir + "/GraphNormalized.tsv", sep='\t')

@@ -143,10 +143,29 @@ class Benchmark():
                 else:
                     commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " " + folder_path + " " + str(0.5) + " >> " + self.stdout + " 2>&1"
                 try:
+                    printToTerminalOnce("RUNNING: " + commandString)
                     subprocess.run([commandString], shell = True, check = True)
                 except Exception as e: 
                     print(e)
                     printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
+            elif(norm == "SCVI"):
+                #for simplicity run this without threads (did not even try but had issues on LINUX for other methods before)
+                commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/scVINormalization/main.py " + normOriginFilePath + " " + folder_path + " >> " + self.stdout + " 2>&1"
+                try:
+                    printToTerminalOnce("RUNNING: " + commandString)
+                    subprocess.run([commandString], shell = True, check = True)
+                except Exception as e: 
+                    print(e)
+                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
+            elif(norm == "SANITY"):
+                #for simplicity run this without threads (did not even try but had issues on LINUX for other methods before)
+                commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/SanityNormalization/main.py " + normOriginFilePath + " " + folder_path + " >> " + self.stdout + " 2>&1"
+                try:
+                    printToTerminalOnce("RUNNING: " + commandString)
+                    subprocess.run([commandString], shell = True, check = True)
+                except Exception as e: 
+                    print(e)
+                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)            
             else:
                 commandString = ""
                 if(self.noExplicitelySetThreads):
@@ -154,6 +173,7 @@ class Benchmark():
                 else:
                     commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
                 try:
+                    printToTerminalOnce("RUNNING: " + commandString)
                     subprocess.run([commandString], shell = True, check = True)
                 except Exception as e: 
                     print(e)

@@ -141,7 +141,7 @@ run_tmm<-function(data)
     as.matrix() %>% 
     t()
   
-  normfactors <- edgeR::calcNormFactors(countdata,sumTrim = 0.05, logratioTrim = 0) %>% 
+  normfactors <- edgeR::calcNormFactors(countdata, sumTrim = 0.05, logratioTrim = 0) %>% 
     enframe("sample_id", "normfactor")
   #on certain platform the output of normfactors is a tibble
   #with the rownames of countdata (Mac, Ubuntu)
@@ -203,6 +203,7 @@ run_clr_seurat<-function(data)
   return(combined_data)
 }
 
+#be aware: sctransform might not work with underscores
 run_sctransform<-function(data, batchEffect) 
 {
   if(batchEffect)

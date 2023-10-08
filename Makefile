@@ -13,8 +13,8 @@ normalization:
 
 
 make graph_norm:
-	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts/TMM.tsv
-	python3 src/methods/GraphNormalization/main.py /Users/t.stohn/Desktop/Normalization/PIPELINE/scRNAseq_Normalization/bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts_NoEGFRemoved/TMM.tsv
+	python3 src/methods/GraphNormalization/main.py ./bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts/TMM.tsv ./bin
+	python3 src/methods/GraphNormalization/main.py ./bin/NORMALIZED_DATASETS/scIDseq-vanEijl-raw-counts_REMOVED_No_EGF/TMM.tsv ./bin
 #creates a directory with all benchmarks for every dataset found in bin/NORMALIZED_DATASETS
 benchmark:
 	mkdir -p bin/BENCHMARKED_DATASETS
@@ -38,7 +38,7 @@ install_requirements:
 	pip3 install -r .requirements_Py.txt
 
 test_simulation:
-	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./examples/simulation.ini
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./test/data/SimulationFolder/test_simulation.ini --d 2 -k
 
 test_simulation_benchmark:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py --t 2 ./test/data/SimulationFolder/

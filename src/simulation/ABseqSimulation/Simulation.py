@@ -18,6 +18,12 @@ from scipy.linalg import eigh, cholesky
 def LINE():
     return sys._getframe(1).f_lineno
 
+def replace_negatives(x):
+    if isinstance(x, (int, float)) and x < 0:
+        return 0
+    else:
+        return x
+    
 #data from paper
     # 25 cycles of PCR
 
@@ -599,7 +605,7 @@ class SingleCellSimulation():
 
     def __add_batch_effect_to_ground_truth(self, newData):
         self.groundTruthData = pd.merge(self.groundTruthData,newData[['sample_id','ab_id','batch_id']],on=['sample_id','ab_id'], how='left')
-
+        
     """ MAIN FUNCTION: 
     1. generates ground truth & 
     2. simulates the protein count detection
@@ -644,6 +650,8 @@ class SingleCellSimulation():
         tmp_simulatedData = self.__perturb(perturbedData)
 
         self.simulatedData = tmp_simulatedData
+        #remove negative counts from data, and substitute with zero
+        self.simulatedData = self.simulatedData.applymap(replace_negatives)
 
         return(self.simulatedData)
 
