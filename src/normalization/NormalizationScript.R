@@ -141,7 +141,7 @@ run_tmm<-function(data)
     as.matrix() %>% 
     t()
   
-  normfactors <- edgeR::calcNormFactors(countdata, sumTrim = 0.05, logratioTrim = 0) %>% 
+  normfactors <- edgeR::calcNormFactors(countdata, sumTrim = 0.05, logratioTrim = 0.05) %>% 
     enframe("sample_id", "normfactor")
   #on certain platform the output of normfactors is a tibble
   #with the rownames of countdata (Mac, Ubuntu)
