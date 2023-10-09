@@ -52,3 +52,5 @@ run_2:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/trueCorr_simulation_2.ini --d 2 -k --t 10
 run_3:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/strengthCorr_simulation_3.ini --d 2 -k --t 10
+run_4:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/combination_4.ini --d 2 -k --t 10
