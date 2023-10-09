@@ -365,7 +365,9 @@ class SingleCellSimulation():
         
         perturbFrame = pd.DataFrame()
         perturbFrame["sample_id"] = data["sample_id"].unique()
-        perturbFrame["factor"] = np.random.uniform(self.parameters.libSize[0],self.parameters.libSize[1], len(perturbFrame))
+        #sample lbisize factors from normal dist: 1.value = mean, 2.= std
+        perturbFrame["factor"] = np.random.normal(self.parameters.libSize[0],self.parameters.libSize[1], len(perturbFrame))
+
         perturbDict = dict(zip(perturbFrame["sample_id"], perturbFrame["factor"]))
         data["ab_count"] = data["ab_count"] * data["sample_id"].map(perturbDict)
 

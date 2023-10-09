@@ -31,7 +31,8 @@ def main():
     if not os.path.exists(output_dir):
         makedirs(output_dir)  
     #folder for Sanity tmp results
-    sanityTmp = "./src/methods/SanityNormalization/Sanity/Tmp"
+    file_name = os.path.splitext(os.path.basename(data_file))[0]
+    sanityTmp = "./src/methods/SanityNormalization/Sanity/Tmp_" + file_name
     if not os.path.exists(sanityTmp):
         os.makedirs(sanityTmp) 
 
