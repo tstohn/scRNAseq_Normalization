@@ -47,4 +47,6 @@ test_simulation_benchmark:
 # RUNS for analysis of paper
 #correlation runs for increasing number of high abudnance proteins (with hig variance)
 run_1:
-	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/corr_simulation_1.ini --d 2 -k --t 5
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/corr_simulation_1.ini --d 2 -k --t 10
+run_2:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/trueCorr_simulation_2.ini --d 2 -k --t 10
