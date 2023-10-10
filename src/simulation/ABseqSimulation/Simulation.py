@@ -144,8 +144,8 @@ class Parameters():
             elif(str.startswith(line, "pcrCapture=")):
                 info = re.match(("pcrCapture=(.*)"), line)
                 self.pcrCapture = float(info[1].rstrip("\n"))  
-            elif(str.startswith(line, "treatmentVector=")):
-                info = re.match(("treatmentVector=(.*)"), line)
+            elif(str.startswith(line, "diffExProteinsFactors=")):
+                info = re.match(("diffExProteinsFactors=(.*)"), line)
                 info = str(info[1]).split(";")
                 for elementVec in info:
                     treatmentAlteration = str(elementVec).split(",")
