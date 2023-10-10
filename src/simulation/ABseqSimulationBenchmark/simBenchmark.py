@@ -283,7 +283,7 @@ class Benchmark():
             os.mkdir(resultDir)
 
         #Spearman RMSD data
-        fileNameList = ["spearmanRMSD.tsv", "treatmentAccuracy.tsv", "spearmanCorrelations.tsv", "ABSpearmanCoeff.tsv"]
+        fileNameList = ["spearmanRMSD.tsv", "treatmentAccuracy.tsv", "spearmanCorrelations.tsv", "ABSpearmanCoeff.tsv", "knnOverlap.tsv"]
         for fileName in fileNameList:
             self.combine_files(newSimulationDir, resultDir, fileName)
 

@@ -15,6 +15,9 @@ import math
 import random
 import collections
 from ctypes import *
+import sys
+sys.path.insert(1, 'src/methods/KnnSimilarity')
+from KnnSimilarity import calculate_knn_overlap
 
 import sklearn
 from sklearn.datasets import make_classification
@@ -127,6 +130,9 @@ class NormalizedDataHandler:
 
         self.abCorr = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/ABSpearmanCoeff.tsv", "w+")
         self.abCorr.write("NORMALIZATION_METHOD" + "\t" + "AB1" + "\t" + "AB2" + "\t" + "GroundtruthCorr" "\t" + "NormCorr\n")
+
+        #header is written when stored
+        self.knnOverlapFilePath = "bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/knnOverlap.tsv"
 
         self.dataset_name = folder_name
         self.folder_path = ("bin/BENCHMARKED_DATASETS/"+folder_name+"/")
@@ -739,6 +745,38 @@ class NormalizedDataHandler:
         plt.savefig(self.folder_path + "Overview/TreatmentWOOutliers.png", dpi=199)
         plt.close()
 
+    def validate_knn_overlap(self, knnOverlap):
+        
+        #Steps
+        #bring data frames into right format
+        #calculate knn overlap between them
+        #write overlap into a result table
 
+        #result: row is single cell, column all norm methods, value percent overlap
+        normMethods = self.data.keys()
+        result = None
+
+        #for every norm method
+        for key in self.data:
+            if("Groundtruth" in key):
+                continue
+            data = self.data[key].copy()
+
+            overlapDist = calculate_knn_overlap(data.copy(), self.groundtruth.copy())
+            overlapDist['NORM_METHOD'] = str(key)
+
+            if(result is None):
+                result = overlapDist
+            else:
+                result = pd.concat([result, overlapDist], ignore_index=True)
+
+        #write final results
+        result.to_csv(self.knnOverlapFilePath, sep='\t', index=False)
+
+
+
+
+
+            
 
 

@@ -43,6 +43,8 @@ test_simulation:
 test_simulation_benchmark:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py --t 2 ./test/data/SimulationFolder/
 
+test_benchmarking_normalized_files:
+	python3 ./src/benchmark/main.py --groundtruth --iniFile ./test/data/BenchmarkFolder/test_simulation.ini --t -1 ./test/data/BenchmarkFolder/benchmarkFiles
 
 # RUNS for analysis of paper
 #correlation runs for increasing number of high abudnance proteins (with hig variance)
@@ -54,3 +56,7 @@ run_3:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/strengthCorr_simulation_3.ini --d 2 -k --t 10
 run_4:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/combination_4.ini --d 2 -k --t 10
+
+
+run_cluster_1:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/increaseNumProteins_1.ini --d 2 -k --t 10

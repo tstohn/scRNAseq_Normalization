@@ -28,6 +28,7 @@ def parse_args():
 
     parser.add_argument('--filterAbTypeForSpearmanCorrelation', help='run spearman correlation additionally for a subset of the data, when looking only at specific protein types',
                         type=str)
+    parser.add_argument('--knn', help='number of KNN to calculate overlap of groundtruth/ normalized neighbors (default 20, -1 to skip step)', type=int, default=20)
     parser.add_argument('--stdout', help='write unimportant messages to a file', default="",
                         type=str)
     #thread is the number of parallel runs of benchmarks: however it does not work on Linux server, therefore if threads is -1, we run one benchmark after the other
@@ -39,13 +40,14 @@ def parse_args():
     args = parser.parse_args()
     return(args)
 
-def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFile, threadsSklearn):
+def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOverlap, iniFile, threadsSklearn):
     #initialization
     from NormalizedDataHandler import NormalizedDataHandler
     import Simulation
 
     benchmark = NormalizedDataHandler(dataset, groundtruth, deleteBenchmark, threadsSklearn)
 
+    #clustering is more or less useless/ and takes a lot of time
     '''
     #additional visualizations
     benchmark.draw_tsne()
@@ -62,7 +64,7 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
         except Exception as e: 
             print(e)
             printToTerminalOnce("\n ERROR: Treatment classification failed\n")
-'''
+    '''
     if(groundtruth):
         params = Simulation.Parameters(iniFile)
 
@@ -110,6 +112,14 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, iniFil
             except Exception as e: 
                 print(e)
                 printToTerminalOnce("\n ERROR: Spearman Correlelation for proteins of type " + spearmanFilter + " failed\n")
+
+        #KNN overlap: calcualte table with percentage of same KNN
+        if(knnOverlap != -1):
+            try:
+                benchmark.validate_knn_overlap(knnOverlap)
+            except Exception as e: 
+                print(e)
+                printToTerminalOnce("\n ERROR: Calcualtion of KNN Overlap between Normalized/ groundtruth data failed\n")
     else:
 
         #SPEARMAN CORRELATION WITHOUT GROUNDTRUTH
@@ -145,7 +155,7 @@ def main():
 
     #make classifications
     for dataset in datasets:
-        make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.iniFile, threadsSklearn)
+        make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.knn, args.iniFile, threadsSklearn)
 
     if(args.stdout != ""):
         outfile.close()

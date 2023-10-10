@@ -114,9 +114,11 @@ class Parameters():
             if(str.startswith(line, "ProteinLevels")):
                 info = re.match(("ProteinLevels=\[(.*)\]"), line)
                 info = str(info[1]).split(";")
+
                 for element in info:
                     parts = re.match(("\s*\[\s*\[\s*([0-9]*)\s*,\s*([0-9]*)\s*\]\s*,\s*([0-9]*)\s*\]\s*"), element)
                     newProteinLevels = self.ProteinLevel(int(parts[1]), int(parts[2]), int(parts[3]))
+                    print(newProteinLevels)
                     if(self.ProteinLevels is not None):
                         self.ProteinLevels.append(newProteinLevels)
                     else:

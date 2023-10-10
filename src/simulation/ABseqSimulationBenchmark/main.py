@@ -184,6 +184,27 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                         if(numberOfProteinCorrelations!=(int(i))):
                             newFile.write(",")
                     newFile.write("]\n")  
+                #diffExProteins is same as proteinCorrelations
+                if(variableParameter=="diffExProteins"):
+                    if(str.startswith(line, "diffExProteinsFactors")):
+                        line = file.readline()
+                        continue
+                        #write new correlations
+                    newFile.write("diffExProteins=[")
+                    for diffExProteinFactor in range(1,int(i)+1):
+                        diffExProteinID = diffExProteinFactor
+                        newFile.write(str(diffExProteinID))
+                        if(diffExProteinFactor!=(int(i))):
+                            newFile.write(",")
+                    newFile.write("]\n")  
+
+                    # write sa factor for everyone
+                    newFile.write("diffExProteinsFactors=[")  
+                    for diffExProteinFactor in range(1,int(i)+1):
+                        newFile.write(str(float(j)))
+                        if(diffExProteinFactor!=(int(i))):
+                            newFile.write(",")
+                    newFile.write("]\n")  
             else:
                 #write same line into file
                 newFile.write(line)
