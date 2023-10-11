@@ -253,16 +253,17 @@ class Benchmark():
 
     #every run of a simulation -> normalizaitons -> benchmark results in a folder in bin/BENCHMARK
     #all those folers are beeing stored in a foler called SIMULATIONS_dateTime to keep better track
-    def moveIntoOneFolder(self, newSimulationDir):
+    def moveIntoOneFolder(self, newSimulationDir, dublicateNum):
         simulationName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))
         if(os.path.exists("./bin/BENCHMARKED_DATASETS/" + simulationName)):
             if(os.path.exists(newSimulationDir + "/" + simulationName)):
                 shutil.rmtree(newSimulationDir + "/" + simulationName)
             shutil.move("./bin/BENCHMARKED_DATASETS/" + simulationName, newSimulationDir)
+            os.rename(newSimulationDir + "/" + simulationName, newSimulationDir + "/" + simulationName + "_" + str(dublicateNum))
 
-    def combine_files(self, newSimulationDir, resultDir, fileName):
+    def combine_files(self, newSimulationDir, resultDir, fileName, dublicationNum):
         newFile = open(resultDir + fileName, 'a')  
-        filePath = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))
+        filePath = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_" + str(dublicationNum)
 
         simulationName = newSimulationDir + "/" + filePath + "/Results/"
         #for loop to go through all files and get the ONE file with the results
@@ -275,7 +276,7 @@ class Benchmark():
                     if(lineNum==0 and os.stat(resultDir + fileName).st_size==0):
                         newFile.write("Simulation_Identifier" + "\t" + line)
                     elif(lineNum!=0):
-                        fileIdentifier = re.findall(r'\d+', filePath)[0]
+                        fileIdentifier = re.findall(r'\d+_\d+', filePath)[0]
                         newFile.write(fileIdentifier + "\t" + line)
                     lineNum = lineNum + 1
                     line = fileStream.readline()
@@ -285,7 +286,7 @@ class Benchmark():
 
     #looks up the result files for all tests (Spearman/ Classification/ etv.) and writes the results
     #of the different Simulations into one common file
-    def copyResultsIntoOneFile(self, newSimulationDir):
+    def copyResultsIntoOneFile(self, newSimulationDir, dublicationNum):
         resultDir = newSimulationDir + "/Results/"
         if not os.path.exists(resultDir):
             os.mkdir(resultDir)
@@ -293,7 +294,7 @@ class Benchmark():
         #Spearman RMSD data
         fileNameList = ["spearmanRMSD.tsv", "treatmentAccuracy.tsv", "spearmanCorrelations.tsv", "ABSpearmanCoeff.tsv", "knnOverlap.tsv"]
         for fileName in fileNameList:
-            self.combine_files(newSimulationDir, resultDir, fileName)
+            self.combine_files(newSimulationDir, resultDir, fileName, dublicationNum)
 
     def deleteExcessData(self, newSimulationDir, fileBenchmarksToKeep):
         folderName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))

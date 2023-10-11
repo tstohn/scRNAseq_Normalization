@@ -229,9 +229,8 @@ def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, du
             param = Parameters(ini)
             benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads, keepData, benchmarkOnly)
             benchmark.run()
-            benchmark.moveIntoOneFolder(newSimulationDir)
-            benchmark.moveIntoOneFolder(stdoutFile)
-            benchmark.copyResultsIntoOneFile(newSimulationDir)
+            benchmark.moveIntoOneFolder(newSimulationDir, i)
+            benchmark.copyResultsIntoOneFile(newSimulationDir, i)
             benchmark.deleteExcessData(newSimulationDir, fileBenchmarksToKeep) 
 
     except Exception as e: 
