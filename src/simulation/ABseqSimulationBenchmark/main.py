@@ -24,6 +24,8 @@ from functions import *
         -s: add flag <-s> to use a directory instead of a single ini files with ranges
             if s variable is set we have a SINGLE simulation file for all simulations (default it is set), if false we have several inis and in this case -in MUST BE A DIRECTORY
         -k : if set we keep all simulation and normalization data, as well as simulated inis
+        -b : to run benchmark only for a bunch of files (e.g. if benchmark failed but simulations/ normalizaiton ran perfectly).
+             This means we MUST HAVE a DIRECTORY WITH ALL INIs and a several DIRECTORIES FOR EVERY INI WITH NORMALIZED FILES in bin
         --d : how often an experiemnt is repeated and averaged, on average this is 5 times
         --t : threads
 """
@@ -35,6 +37,7 @@ def parse_args():
                         type=int, default=-1)
     parser.add_argument('dir', metavar='DIR', type=str)
     parser.add_argument('-s', action='store_false')
+    parser.add_argument('-b', action='store_true')
     parser.add_argument('-k', action='store_true')
     parser.add_argument('--d', help='duplicates',
                         type=int, default=5)
@@ -219,12 +222,12 @@ def delete_tmp_folder(folder):
     if(os.path.exists(folder)):
         shutil.rmtree(folder)
 
-def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, duplicates, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations):
+def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, duplicates, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations, benchmarkOnly):
     printToTerminalOnce("#  RUNNING SIMULATION[" + str(recentSimulationNumber) + "/" + str(numberOfSimulations) + "]")
     try:
         for i in range(0,duplicates):
             param = Parameters(ini)
-            benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads, keepData)
+            benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads, keepData, benchmarkOnly)
             benchmark.run()
             benchmark.moveIntoOneFolder(newSimulationDir)
             benchmark.moveIntoOneFolder(stdoutFile)
@@ -264,6 +267,8 @@ def main():
 
         tmpDir = ""
         keepData = False
+        benchmarkOnly = False
+
         fileBenchmarksToKeep = []
         if(args.s):
             tmpDir = generate_simulation_iniFiles(args.dir, fileBenchmarksToKeep)
@@ -271,6 +276,8 @@ def main():
             tmpDir = args.dir
         if(args.k):
             keepData = True
+        if(args.b):
+            benchmarkOnly = True
 
         parameterFolder = tmpDir
 
@@ -289,7 +296,7 @@ def main():
         numberOfSimulations = len(iniFilePathList)
         recentSimulationNumber = 1
         for ini in iniFilePathList:
-            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, args.d, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations))
+            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, args.d, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations, benchmarkOnly))
             recentSimulationNumber = recentSimulationNumber + 1
 
         pool.close()

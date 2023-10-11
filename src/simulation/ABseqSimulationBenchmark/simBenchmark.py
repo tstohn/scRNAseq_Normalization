@@ -59,11 +59,12 @@ class Benchmark():
 
     parameters=None
 
-    def __init__(self, parameters, stdoutFile = "", noExplicitelySetThreads = False, keepData = False):
+    def __init__(self, parameters, stdoutFile = "", noExplicitelySetThreads = False, keepData = False, benchmarkOnly = False):
         self.parameters = parameters
         self.stdout = stdoutFile
         self.noExplicitelySetThreads = noExplicitelySetThreads
         self.keepData = keepData
+        self.benchmarkOnly = benchmarkOnly
 
     def __generateNormalizationIni(self, normOriginFilePath):
         iniFile = removesuffix(normOriginFilePath,'.tsv') + ".ini"
@@ -94,129 +95,136 @@ class Benchmark():
         #activate environment
         subprocess.run(["source scRNAseq/bin/activate"], shell=True)
 
-        #1.) call simulations
-        #__________________
-        printToTerminalOnce("RUN SIMULATION")
-
-        if(self.noExplicitelySetThreads):
-            subprocess.run(["python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
-        else:
-            subprocess.run(["OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --t 1 --stdout " + self.stdout], shell = True, check = True)
-
-        #copy simulations into normnalization folder:
-        #from bin/SIMMULATIONS to datasets/
+        #FOLDER/ FILE DEFINITION FOR SIMULATION
         simulationFilePath = "./bin/SIMULATIONS/"
-
         # ini files that simply maps the cooumn names from data.table to the unsed parameters in normalization
         simulationName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))
         simulatedFileName = simulationName + "_SIMULATED.tsv"
-        
+
         normOriginFilePath = self.parameters.datasets + "/" + simulationName + ".tsv"
         simulationResultFilePath = simulationFilePath + simulatedFileName
 
-        #copy simulated file in ./bin/SIMULATIONS/file_SIMULATWED.tsv into the folder for files to normalize
-        #this file is stated in github dir ini file: for us 2_preprocessed
-        commandString = "cp " + simulationResultFilePath + " " + normOriginFilePath
-        subprocess.run([commandString], shell = True, check = True)
-
-        #generate a ini file next to it
-        self.__generateNormalizationIni(normOriginFilePath)
-
-        #2.) run normalizations
-        #__________________
-        printToTerminalOnce("RUN NORMALIZATION")
-        if( not self.parameters.normMethods ):
-            printToTerminalOnce("No normalization methods given!")
-            return
-
-        #delete normalization folder if exists (since a previous mthod might have used other norm methods, with other cell numbers etc which might
-        # lead to downstream errors)
         folder_path = ("./bin/NORMALIZED_DATASETS/" + simulationName)
-        if os.path.exists(folder_path):
-            shutil.rmtree(folder_path, ignore_errors=True)
 
-        for norm in self.parameters.normMethods:
-            if(norm == "GRAPH"):
-                commandString = ""
-                if(self.noExplicitelySetThreads):
-                    commandString = "python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " " + folder_path + " " + str(0.5) + " >> " + self.stdout + " 2>&1"
-                else:
-                    commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " " + folder_path + " " + str(0.5) + " >> " + self.stdout + " 2>&1"
-                try:
-                    printToTerminalOnce("RUNNING: " + commandString)
-                    subprocess.run([commandString], shell = True, check = True)
-                except Exception as e: 
-                    print(e)
-                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
-            elif(norm == "SCVI"):
-                #for simplicity run this without threads (did not even try but had issues on LINUX for other methods before)
-                commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/scVINormalization/main.py " + normOriginFilePath + " " + folder_path + " >> " + self.stdout + " 2>&1"
-                try:
-                    printToTerminalOnce("RUNNING: " + commandString)
-                    subprocess.run([commandString], shell = True, check = True)
-                except Exception as e: 
-                    print(e)
-                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
-            elif(norm == "SANITY"):
-                #for simplicity run this without threads (did not even try but had issues on LINUX for other methods before)
-                commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/SanityNormalization/main.py " + normOriginFilePath + " " + folder_path + " >> " + self.stdout + " 2>&1"
-                try:
-                    printToTerminalOnce("RUNNING: " + commandString)
-                    subprocess.run([commandString], shell = True, check = True)
-                except Exception as e: 
-                    print(e)
-                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)            
+        #benchmark files
+        groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH.tsv"
+        simulatedName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_SIMULATED.tsv"
+        newGroundTruthName = "Groundtruth.tsv"
+        newSimulatedName = "Simulation.tsv"
+        groundTruthFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newGroundTruthName)
+        simulatedFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newSimulatedName)
+
+        if(self.benchmarkOnly):
+            printToTerminalOnce("SKIP SIMULATIONS; go stright to benchmark: make sure INI files (check path in pipeline ini) and normalized folders per ini exist (in bin/NORMALIZED_DATASETS)")
+        else:
+            #1.) call simulations
+            #__________________
+            printToTerminalOnce("RUN SIMULATION")
+
+            if(self.noExplicitelySetThreads):
+                subprocess.run(["python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --stdout " + self.stdout], shell = True, check = True)
             else:
-                commandString = ""
-                if(self.noExplicitelySetThreads):
-                    commandString = "Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
+                subprocess.run(["OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 ./src/simulation/ABseqSimulation/main.py " + self.parameters.iniFile + " --t 1 --stdout " + self.stdout], shell = True, check = True)
+
+            #copy simulations into normnalization folder:
+            ##################################
+            #from bin/SIMMULATIONS to datasets/
+
+            #copy simulated file in ./bin/SIMULATIONS/file_SIMULATWED.tsv into the folder for files to normalize
+            #this file is stated in github dir ini file: for us 2_preprocessed
+            commandString = "cp " + simulationResultFilePath + " " + normOriginFilePath
+            subprocess.run([commandString], shell = True, check = True)
+
+            #generate a ini file next to it
+            self.__generateNormalizationIni(normOriginFilePath)
+
+            #2.) run normalizations
+            #__________________
+            printToTerminalOnce("RUN NORMALIZATION")
+            if( not self.parameters.normMethods ):
+                printToTerminalOnce("No normalization methods given!")
+                return
+
+            #delete normalization folder if exists (since a previous mthod might have used other norm methods, with other cell numbers etc which might
+            # lead to downstream errors)
+            if os.path.exists(folder_path):
+                shutil.rmtree(folder_path, ignore_errors=True)
+
+            for norm in self.parameters.normMethods:
+                if(norm == "GRAPH"):
+                    commandString = ""
+                    if(self.noExplicitelySetThreads):
+                        commandString = "python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " " + folder_path + " " + str(0.5) + " >> " + self.stdout + " 2>&1"
+                    else:
+                        commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/GraphNormalization/main.py " + normOriginFilePath + " " + folder_path + " " + str(0.5) + " >> " + self.stdout + " 2>&1"
+                    try:
+                        printToTerminalOnce("RUNNING: " + commandString)
+                        subprocess.run([commandString], shell = True, check = True)
+                    except Exception as e: 
+                        print(e)
+                        printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
+                elif(norm == "SCVI"):
+                    #for simplicity run this without threads (did not even try but had issues on LINUX for other methods before)
+                    commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/scVINormalization/main.py " + normOriginFilePath + " " + folder_path + " >> " + self.stdout + " 2>&1"
+                    try:
+                        printToTerminalOnce("RUNNING: " + commandString)
+                        subprocess.run([commandString], shell = True, check = True)
+                    except Exception as e: 
+                        print(e)
+                        printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
+                elif(norm == "SANITY"):
+                    #for simplicity run this without threads (did not even try but had issues on LINUX for other methods before)
+                    commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 python3 src/methods/SanityNormalization/main.py " + normOriginFilePath + " " + folder_path + " >> " + self.stdout + " 2>&1"
+                    try:
+                        printToTerminalOnce("RUNNING: " + commandString)
+                        subprocess.run([commandString], shell = True, check = True)
+                    except Exception as e: 
+                        print(e)
+                        printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)            
                 else:
-                    commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
-                try:
-                    printToTerminalOnce("RUNNING: " + commandString)
-                    subprocess.run([commandString], shell = True, check = True)
-                except Exception as e: 
-                    print(e)
-                    printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
+                    commandString = ""
+                    if(self.noExplicitelySetThreads):
+                        commandString = "Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
+                    else:
+                        commandString = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 Rscript --quiet ./src/normalization/NormalizationScript.R " + norm + " " + simulationName + ".tsv >> " + self.stdout + " 2>&1"
+                    try:
+                        printToTerminalOnce("RUNNING: " + commandString)
+                        subprocess.run([commandString], shell = True, check = True)
+                    except Exception as e: 
+                        print(e)
+                        printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
 
-        try:
+            try:
 
-            groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH.tsv"
-            simulatedName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_SIMULATED.tsv"
-            newGroundTruthName = "Groundtruth.tsv"
-            newSimulatedName = "Simulation.tsv"
-            groundTruthFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newGroundTruthName)
-            simulatedFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newSimulatedName)
+                #move also ground truth into normalization folder
+                groundTruthResultFilePath = simulationFilePath + groundTruthName
+                commandString = "cp " + groundTruthResultFilePath + " " + groundTruthFile
+                subprocess.run([commandString], shell = True, check = True)
+                #move also simulated file into normalization folder
+                simulatedResultFilePath = simulationFilePath + simulatedName
+                commandString = "cp " + simulatedResultFilePath + " " + simulatedFile
+                subprocess.run([commandString], shell = True, check = True)
 
-            #move also ground truth into normalization folder
-            groundTruthResultFilePath = simulationFilePath + groundTruthName
-            commandString = "cp " + groundTruthResultFilePath + " " + groundTruthFile
-            subprocess.run([commandString], shell = True, check = True)
-            #move also simulated file into normalization folder
-            simulatedResultFilePath = simulationFilePath + simulatedName
-            commandString = "cp " + simulatedResultFilePath + " " + simulatedFile
-            subprocess.run([commandString], shell = True, check = True)
-
-            #remove the ab_count with ab_count_normalized to still run benchmark on it
-            #from ground truth
-            groundTruthDataStream = open(groundTruthFile, "rt")
-            dataGroundTruth = groundTruthDataStream.read()
-            dataGroundTruth = dataGroundTruth.replace('ab_count', 'ab_count_normalized')
-            groundTruthDataStream.close()
-            groundTruthDataStream = open(groundTruthFile, "wt")
-            groundTruthDataStream.write(dataGroundTruth)
-            groundTruthDataStream.close()
-            #from simulated file
-            simulatedDataStream = open(simulatedFile, "rt")
-            dataSimulated = simulatedDataStream.read()
-            dataSimulated = dataSimulated.replace('ab_count', 'ab_count_normalized')
-            simulatedDataStream.close()
-            simulatedDataStream = open(simulatedFile, "wt")
-            simulatedDataStream.write(dataSimulated)
-            simulatedDataStream.close()
-        except Exception as e: 
-            print(e)
-            printToTerminalOnce("ERROR for moving simulated and groundTruth data for " + self.parameters.iniFile + "\n")
+                #remove the ab_count with ab_count_normalized to still run benchmark on it
+                #from ground truth
+                groundTruthDataStream = open(groundTruthFile, "rt")
+                dataGroundTruth = groundTruthDataStream.read()
+                dataGroundTruth = dataGroundTruth.replace('ab_count', 'ab_count_normalized')
+                groundTruthDataStream.close()
+                groundTruthDataStream = open(groundTruthFile, "wt")
+                groundTruthDataStream.write(dataGroundTruth)
+                groundTruthDataStream.close()
+                #from simulated file
+                simulatedDataStream = open(simulatedFile, "rt")
+                dataSimulated = simulatedDataStream.read()
+                dataSimulated = dataSimulated.replace('ab_count', 'ab_count_normalized')
+                simulatedDataStream.close()
+                simulatedDataStream = open(simulatedFile, "wt")
+                simulatedDataStream.write(dataSimulated)
+                simulatedDataStream.close()
+            except Exception as e: 
+                print(e)
+                printToTerminalOnce("ERROR for moving simulated and groundTruth data for " + self.parameters.iniFile + "\n")
 
         #run normalization benchmark
         try:
