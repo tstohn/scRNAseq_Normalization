@@ -57,6 +57,5 @@ run_3:
 run_4:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/combination_4.ini --d 2 -k --t 10
 
-
 run_cluster_1:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/increaseNumProteins_1.ini --d 2 -k --t 10
