@@ -158,56 +158,62 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                 if(variableParameter=="proteinNoise"):
                     newFile.write("proteinNoise=" + str(i) + "\n")
                 
-                #correlation (factor are easy)
-                if(variableParameter=="proteinCorrelationFactors"):
-                    newCorrelation = float(i)
-                    newLine = line.replace("X", str(newCorrelation))
+                #CORRELATION LINE
+                #same as ProteinLevels: we can have diff distributions of correlations
+                #think of it as the correlation density plots: now we define how many protein-pairs should be sampled
+                #from those distributions that we define
+                if(variableParameter=="proteinCorrelationDists"):
+                    proteinCorrParam = float(i)
+                    newLine = line.replace("X", str(proteinCorrParam))
+                    if value2Set:
+                        proteinCorrParam2 = float(j)
+                        newLine = newLine.replace("Y", str(proteinCorrParam2))
                     newFile.write(newLine)
 
-                #the number of correlations is first a triple, then a semicolon seperated triple for the
-                # factor (range)
-                if(variableParameter=="proteinCorrelation"):
-                    if(str.startswith(line, "proteinCorrelationFactors")):
-                        line = file.readline()
-                        continue
-                    #write new correlations
-                    newFile.write("proteinCorrelation=[")
-                    for numberOfProteinCorrelations in range(1,int(i)+1):
-                        newStart = (2*(numberOfProteinCorrelations-1))+1
-                        newEnd = newStart+1
-                        newFile.write("[" + str(newStart) + "+" + str(newEnd) + "]")
-                        if(numberOfProteinCorrelations!=(int(i))):
-                            newFile.write(",")
-                    newFile.write("]\n")  
-
-                    # write sa factor for everyone
-                    newFile.write("proteinCorrelationFactors=[")  
-                    for numberOfProteinCorrelations in range(1,int(i)+1):
-                        newFile.write(str(float(j)))
-                        if(numberOfProteinCorrelations!=(int(i))):
-                            newFile.write(",")
-                    newFile.write("]\n")  
-                #diffExProteins is same as proteinCorrelations
-                if(variableParameter=="diffExProteins"):
-                    if(str.startswith(line, "diffExProteinsFactors")):
-                        line = file.readline()
-                        continue
-                        #write new correlations
-                    newFile.write("diffExProteins=[")
-                    for diffExProteinFactor in range(1,int(i)+1):
-                        diffExProteinID = diffExProteinFactor
-                        newFile.write(str(diffExProteinID))
-                        if(diffExProteinFactor!=(int(i))):
-                            newFile.write(",")
-                    newFile.write("]\n")  
-
-                    # write sa factor for everyone
-                    newFile.write("diffExProteinsFactors=[")  
-                    for diffExProteinFactor in range(1,int(i)+1):
-                        newFile.write(str(float(j)))
-                        if(diffExProteinFactor!=(int(i))):
-                            newFile.write(",")
-                    newFile.write("]\n")  
+                #CLUSTER LINE
+                #increasing number of proteins effected by cluster (might make most sense to set numberProteins=[X] with ONE additionalCluster, but other scenarios are possible)
+                if(variableParameter=="numberProteins"):
+                    newLine = line.replace("X", str(i))
+                    newFile.write(newLine)
+                #increasing factor weight to scale prrteins between clsuters (might make most sense to set abundanceFactors=[X] with ONE additionalCluster, but other scenarios are possible)
+                if(variableParameter=="abundanceFactors"):
+                    newLine = line.replace("X", str(i))
+                    newFile.write(newLine)
+                #increasing percentage for correlationFactor (might make most sense to set correlationFactors=[X] with ONE additionalCluster, but other scenarios are possible)
+                if(variableParameter=="correlationFactors"):
+                    newLine = line.replace("X", str(i))
+                    newFile.write(newLine)
+                #increasing cellPercentages (have in mind, all NON-X cell percentages get evenly scaled to sum to 100)
+                if(variableParameter=="cellPercentages"):
+                    #we need to scale other cell population percentages so that they sum to 100
+                    info = re.match(("cellPercentages=\[(.*)\]"), line)
+                    info = str(info[1]).split(",")
+                    fillTo = 100.0 - float(i)
+                    recentValue = 0.0
+                    difference = 0.0
+                    cellPercentagesLength = len(info) - 1
+                    for el in info:
+                        if(el != "X"):
+                            recentValue += float(el)
+                    if(recentValue is not fillTo):
+                        difference = (fillTo - recentValue)
+                    newLine = "cellPercentages=["
+                    differenceReached = 0
+                    infoIdx = 0
+                    cellPercentageList = [element for element in info if element != "X"]
+                    for el in cellPercentageList:
+                        newValue = 0.0
+                        if(el == "X"):
+                            continue
+                        if(infoIdx == cellPercentagesLength-1):
+                            newValue = float(el) + (difference - differenceReached)
+                        else:
+                            newValue = float(el) + round((difference/cellPercentagesLength),1)
+                            differenceReached += round((difference/cellPercentagesLength),1)
+                        infoIdx += 1
+                        newLine += str(newValue) + ","
+                    newLine += str(i) + "]\n"
+                    newFile.write(newLine)
             else:
                 #write same line into file
                 newFile.write(line)
