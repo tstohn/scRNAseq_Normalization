@@ -71,6 +71,8 @@ class Parameters():
     #antibody count is not considered for now: in sc IDseq constant AB concentration was used for all targets (0.1myg/ml over night)
     #biological variation matrix
     #technical variation matrix
+    
+    #data types to hold proteinlevels/dist/correlations which are inserted in dictionaries mapping them to individual proteins later on
     ProteinLevel = namedtuple('ProteinLevel', ['start', 'end', 'number'])
     ProteinDist = namedtuple('proteinDist',['mu','size'])
     ProteinCorrelation = namedtuple('ProteinCorrelation', ['mean', 'std', 'number'])
@@ -99,15 +101,16 @@ class Parameters():
     proteinCorrelationDists = []
     proteinCorrelationMean = 0.0
     proteinCorrelationStd = 0.4
+    numberProteinCorrelations = 0
 
     #CLUSTER
+    numberOfClusters = 1
     abundanceFactors=[]
-    numberDiffProteins=[]
+    numberClusterSpecificProteins=[]
 
     correlationFactors=[]
     correlationSets=None
 
-    additionalClusters=0
     cellPercentages=[100]
 
     cellABCountAtGroundtruth = {}
@@ -165,42 +168,6 @@ class Parameters():
             elif(str.startswith(line, "pcrCapture=")):
                 info = re.match(("pcrCapture=(.*)"), line)
                 self.pcrCapture = float(info[1].rstrip("\n"))  
-            elif(str.startswith(line, "diffExProteinsFactors=")):
-                info = re.match(("diffExProteinsFactors=(.*)"), line)
-                info = str(info[1]).split(";")
-                for elementVec in info:
-                    treatmentAlteration = str(elementVec).split(",")
-                    tmpTreatmentVec = None
-                    for element in treatmentAlteration:
-                        element = element.replace("[","") 
-                        element = element.replace("]","") 
-                        treatmentNum = float(element)
-                        if(tmpTreatmentVec is not None):
-                            tmpTreatmentVec.append(treatmentNum)
-                        else:
-                            tmpTreatmentVec = [treatmentNum]
-                    if(self.treatmentVector is not None):
-                        self.treatmentVector.append(tmpTreatmentVec)
-                    else:
-                        self.treatmentVector = [tmpTreatmentVec]
-            elif(str.startswith(line, "diffExProteins=")):
-                info = re.match(("diffExProteins=(.*)"), line)
-                info = str(info[1]).split(";")
-                for elementVec in info:
-                    diffExProteinIds = str(elementVec).split(",")
-                    tmpProtIdVec = None
-                    for element in diffExProteinIds:
-                        element = element.replace("[","") 
-                        element = element.replace("]","") 
-                        protId = ("AB" + str(element))
-                        if(tmpProtIdVec is not None):
-                            tmpProtIdVec.append(protId)
-                        else:
-                            tmpProtIdVec = [protId]
-                    if(self.diffExProteins is not None):
-                        self.diffExProteins.append(tmpProtIdVec)
-                    else:
-                        self.diffExProteins = [tmpProtIdVec]
             elif(str.startswith(line, "batchFactors=")):
                 info = re.match(("batchFactors=(.*)"), line)
                 info = str(info[1]).split(",")
@@ -240,13 +207,14 @@ class Parameters():
                 for element in info:
                     parts = re.match(("\s*\[\s*\[\s*([0-9]*)\s*,\s*([0-9]*)\s*\]\s*,\s*([0-9]*)\s*\]\s*"), element)
                     newCorrDist = self.ProteinCorrelation(float(parts[1]), float(parts[2]), float(parts[3]))
+                    numberProteinCorrelations = numberProteinCorrelations + newCorrDist.number
                     print(newCorrDist)
                     corrNumber += newCorrDist.number
                     if(self.proteinCorrelationDists is not None):
                         self.proteinCorrelationDists.append(newCorrDist)
                     else:
                         self.proteinCorrelationDists = [newCorrDist]
-                assert corrNumber <= proteinNumber, "The numbers of correlated proteins in <proteinCorrelations> can not be higher than proteins in <ProteinLevels>h!! It can be smaller, those proteins will be correlated by drawing form a gaussian around zero (see params)"
+                assert corrNumber <= self.ProteinNumber, "The numbers of correlated proteins in <proteinCorrelations> can not be higher than proteins in <ProteinLevels>h!! It can be smaller, those proteins will be correlated by drawing form a gaussian around zero (see params)"
             elif(str.startswith(line, "proteinCorrelationMean=")):
                 info = re.match(("proteinCorrelationMean=(.*)"), line)
                 self.proteinCorrelationMean = float(info[1].rstrip("\n"))
@@ -260,12 +228,12 @@ class Parameters():
                 assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line
                 self.abundanceFactors = ast.literal_eval(info)
                 self.abundanceFactors = [float(element) for element in self.abundanceFactors]
-            elif(str.startswith(line, "numberProteins=")):
+            elif(str.startswith(line, "numberClusterSpecificProteins=")):
                 info = re.match(("numberProteins=(.*)"), line.rstrip('\n'))
                 assert info[0] == "[", "First character must be '[' for following line in the ini file: " + line
                 assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line
-                self.numberDiffProteins = ast.literal_eval(info)
-                self.numberDiffProteins = [int(element) for element in self.numberDiffProteins]
+                self.numberClusterSpecificProteins = ast.literal_eval(info)
+                self.numberClusterSpecificProteins = [int(element) for element in self.numberClusterSpecificProteins]
             elif(str.startswith(line, "correlationFactors=")):
                 info = re.match(("correlationFactors=(.*)"), line.rstrip('\n'))
                 assert info[0] == "[", "First character must be '[' for following line in the ini file: " + line
@@ -278,9 +246,6 @@ class Parameters():
                 assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line
                 self.cellPercentages = ast.literal_eval(info)
                 self.cellPercentages = [float(element) for element in self.cellPercentages]
-            elif(str.startswith(line, "additionalClusters=")):
-                info = re.match(("additionalClusters=(.*)"), line)
-                self.additionalClusters = int(info[1].rstrip("\n"))
             elif(str.startswith(line, "correlationSets=")): 
                 #same for as ProteinLevels: [[mu, sd, #proteins]; ...] 
                 # with as many Correlation Distributions as wanted
@@ -294,12 +259,22 @@ class Parameters():
                     else:
                         self.correlationSets = [newSet]            
             line = file.readline()
-        assert (self.additionalClusters+1) == len(self.cellPercentages), "Error in ini file: The number of cellPercentages must be equal to number of additionalClusters + 1"
-        assert (self.abundanceFactors) == len(self.additionalClusters), "Error in ini file: additionalClusters and abundanceFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
-        assert (self.correlationFactors) == len(self.additionalClusters), "Error in ini file: additionalClusters and correlationFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
+        #we need exactly one abundance/ correlation/ percentage factor for every clusters
+        self.numberOfClusters = len(self.cellPercentages) 
+        assert ( len(self.abundanceFactors)   == self.numberOfClusters), "Error in ini file: cellPercentages and abundanceFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
+        assert ( len(self.numberClusterSpecificProteins)   == self.numberOfClusters), "Error in ini file: cellPercentages and number of scaled proteins per cluster <numberProteins> are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
+        #we also have cluster specific correlation variables
+        assert ( len(self.correlationFactors) == self.numberOfClusters), "Error in ini file: cellPercentages and correlationFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
+        assert ( len(self.correlationSets) == self.numberOfClusters), "Error in ini file: cellPercentages and correlationSets are of different length (we need ONE set of diff-corr protein distributions per ADDITIONAL CLUSTER)"
+
         assert sum(self.cellPercentages) == 100, "Sum of cellPercentages must be 100"
-        for CorrSet in self.correlationSets:
-            assert len(CorrSet)<=len(self.proteinCorrelationDists), "CorrelationSet Error: per cluster we can only scale as many correlationSets as there are distirbutions of correlations to sample from..."
+        if(self.correlationSets is not None):
+            for CorrSet in self.correlationSets:
+                assert len(CorrSet)<=len(self.proteinCorrelationDists), "CorrelationSet Error: per cluster we can only scale as many correlationSets as there are distirbutions of correlations to sample from..."
+        totalNumberIntercorrelatedProteins = 0
+        for correlationDist in self.proteinCorrelationDists:
+            totalNumberIntercorrelatedProteins += correlationDist.number
+        assert(totalNumberIntercorrelatedProteins <= self.ProteinNumber), "The number of protein-protein correlation stated in the 3rd parameters in proteinCorrelationDists does not sum up to the number of proteins measured, we have more correlations than possible!!!"
 
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
@@ -310,6 +285,8 @@ class SingleCellSimulation():
     parameters = None
     ab_sampled = None
     output_dir = "./bin/SIMULATIONS/"
+    proteinDistributions = {} #the actual distributions for every protein
+    #(this is different to proteinDist from parameters, which stores the distributions of mu, size for the whole dataset)
 
     """ MODELLED DATA """
     groundTruthData = None
@@ -342,8 +319,8 @@ class SingleCellSimulation():
 
                 proteinCount +=1
 
-                proteinDist = self.parameters.ProteinDist(mu, size)
-                self.parameters.proteinDistributions[abName] = proteinDist
+                proteinDist = self.parameters.ProteinDist(int(mu), float(size))
+                self.proteinDistributions[abName] = proteinDist
         
         self.cellABCountAtGroundtruth = proteinCountMatrix.sum(axis = 1)
 
@@ -453,7 +430,7 @@ class SingleCellSimulation():
         cov = corr * sdProduct
         return cov
 
-    #generate correlated counts by the help of the cholevski method
+    #generate correlated counts by the help of the cholevski method (outdated version without correlations)
     def __correlate_proteins_cholevski(self, data, prot1, prot2, corr):
         
         #generate multivariate gaussian dist data
@@ -474,8 +451,8 @@ class SingleCellSimulation():
         dataFrame = pd.DataFrame({'X':values[0], 'Y':values[1]})
         dataFrame['Idx'] = np.arange(len(dataFrame))
         
-        dist1 = self.parameters.proteinDistributions[prot1]
-        dist2 = self.parameters.proteinDistributions[prot2]
+        dist1 = self.proteinDistributions[prot1]
+        dist2 = self.proteinDistributions[prot2]
         distX = ProteinCountDistribution(self.parameters.CellNumber, dist1.mu, dist1.size)
         distY = ProteinCountDistribution(self.parameters.CellNumber, dist2.mu, dist2.size)
         proteinCountVectorX = distX.distributionValues()
@@ -496,10 +473,11 @@ class SingleCellSimulation():
     #creates sets of proteins that are CORRELATED: these sets do not contain overlapping proteins
     def __groupProteinsForCorrelationSets(self):
         correlationProteinsSets = []
-        proteinList = range(self.ProteinNumber)
-        for proteinCorr in self.proteinCorrelationDists:
+        proteinList = range(self.parameters.ProteinNumber)
+        for proteinCorr in self.parameters.proteinCorrelationDists:
             subset = random.sample(proteinList, proteinCorr.number)
             correlationProteinsSets.append(subset)
+            #remove elements that were already selected for next sampling step
             proteinList = [element for element in proteinList if element not in subset]
         return(correlationProteinsSets)
     
@@ -516,18 +494,18 @@ class SingleCellSimulation():
         corr = np.random.normal(mean, std)
         return(corr)
 
-    # 1.) correlationProteinsSets: list of lists, where every sublist contains all proteins that r intercorrelated
-    # 2.a) scaledCorrelationIdxs: list of lists, where every sublist contains which correlationproteinSets should be scaled
-    # 2.b) correlationScalingFactors: list of all the scaling factors for the proteinSets that r supposed to be scaled
+    # 1.) correlationProteinsSets: list of lists, where every sublist contains all proteins that r intercorrelated/ order of proteinCorrelationDist
+    # 2.a) scaledSetsPerCluster: list of lists, where every sublist contains which correlationproteinSets should be scaled: ordered by cluster
+    # 2.b) correlationScalingFactors: list of all the scaling factors for the proteinSets that r supposed to be scaled: ordered by clusters
     # 3.) clusterIdx: current cluster with 0==Baseline
-    def __generateCovarianceMatrix(self, correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, clusterIdx):
+    def __generateCovarianceMatrix(self, correlationProteinsSets, scaledSetsPerCluster, correlationScalingFactors, clusterIdx):
 
         #initialize zero covariance matrix
         covMat = [[0.0 for _ in range(self.ProteinNumber)] for _ in range(self.ProteinNumber)]
 
         #iterate through all protein-pairs (triangular matrix - but fill all values)
-        for i in range(self.ProteinNumber):
-            for j in range(i, self.ProteinNumber):
+        for i in range(self.parameters.ProteinNumber):
+            for j in range(i, self.parameters.ProteinNumber):
                 if(i == j):
                     covMat[i][j] = 1.0
                     covMat[j][i] = 1.0
@@ -540,7 +518,7 @@ class SingleCellSimulation():
                             corr = self.__sampleFromCorrelationDist(setIdx)
                             #if current set should also be scaled for current cluster
                             #for baseline clusterIdx==0 scaledCorrelationIdxs should be []
-                            if(setIdx in scaledCorrelationIdxs[clusterIdx]):
+                            if(setIdx in scaledSetsPerCluster[clusterIdx]):
                                 scalingFactor = correlationScalingFactors[clusterIdx]
                                 assert clusterIdx!=0, "baseline cluster SHOULD NOT GET CORRELATIONS SCALED!!"
                                 #correaltion can not be > 1.0
@@ -553,7 +531,8 @@ class SingleCellSimulation():
 
         return(covMat)
         
-    def __generateProteinDistributions(self,scaledProteinIdxs, clusterIdx, abundanceScalingfactors):
+    #make a list of all the protein distributions
+    def __generateProteinDistributions(self,scaledProteinIdxs, clusterIdx):
             
         distributions = []
         protein = 0
@@ -565,7 +544,7 @@ class SingleCellSimulation():
                 #sclae mu by cluster specific scaling factor
                 if(protein in proteinsToScale):
                     assert clusterIdx != 0, "The zero Cluster(baseline, not sclaed) can not have a scaling factor"
-                    mu = mu * abundanceScalingfactors[clusterIdx]
+                    mu = mu * self.parameters.abundanceFactors[clusterIdx]
                 #variance of neg. binom is constant for now, which could also be sampeld from dist.
                 size = self.parameters.size
 
@@ -582,7 +561,7 @@ class SingleCellSimulation():
         copula_params['correlation'] = cov
         copula_params['univariates'] = dist
         copula_params['type'] = copulas.multivariate.gaussian.GaussianMultivariate
-        copula_params['columns'] = ["AB" + str(number) for number in range(self.ProteinNumber)]
+        copula_params['columns'] = ["AB" + str(number) for number in range(self.parameters.ProteinNumber)]
         copula_model = Multivariate.from_dict(copula_params)
 
         cellNumber = round(self.CellNumber * (percentage/100.0))
@@ -601,41 +580,49 @@ class SingleCellSimulation():
 
         return(copulaResult)
             
-    def __generateGroundTruthPerCluster(self):
-        distributions = []
-        covariancematrix = []
+         
+    def __generateClusterSpecificCovarianceMatrices(self):
+    
+        # list of protein Idx for every dist in proteinCorrelationDists
+        # we have the number of intercorrelated proteins from proteinCorrelationDist variable
+        # now we sample this number fo proteins for every proteinDist that is stated in the variable
+        correlationProteinsSets = []
+        #stores a list of lists: lists for every proteinCorrelationDist with a list of all proteins belonging to this dist
+        correlationProteinsSets = self.__groupProteinsForCorrelationSets()
+        
+        #proteinSet from proteinCorrelationDist for which CORRELATIONS are SCALED differently
+        scaledCorrelationIdxs = self.parameters.correlationSets
+        scaledCorrelationIdxs.insert(0, []) #base cluster has no sclaing of correlations
+        
+        #scaling factors for all correlations in the scaledCorrelationIdxs
+        correlationScalingFactors = self.parameters.correlationFactors
+        correlationScalingFactors.insert(0, 1.0)
+        for idx in range(self.parameters.numberOfClusters):
+            covariancematrix += self.__generateCovarianceMatrix(correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx)
+
+            
+    def __generateGroundTruthWithCopula(self):
+        # ALL LIST ORDERED BY CLUSTER
+        distributions = [] #list of the cluster specific distribution for proteins (scaled by factors for clusters)
+        #it is a list of lists: for every cluster, for every proteins, the neg.binom. parametrization
+        covariancematrix = [] # list of cluster specific covariance matrices
         groundTruthDataList = []
 
-        #make distributions:
-        #get proteins that are SCALED differently (add empty set for baseclass = zero scaled proteins)
-        scaledProteinIdxs = [[]]
-        for idx in range(self.additionalClusters):
-            subset = random.sample(range(self.ProteinNumber), self.numberDiffProteins[idx])
-            scaledProteinIdxs.append(subset)
-        #since we also iterate over the baseclass insert the 1.) scaling factor
-        #the factor itself is anyways not used, since there is no protein to scale, 
-        #but the index order must be retained
-        abundanceScalingfactors = self.abundanceFactors
-        abundanceScalingfactors.insert(0, 1.0)
-        for idx in range(self.additionalClusters + 1):
-            distributions = self.__generateProteinDistributions(scaledProteinIdxs, idx, abundanceScalingfactors)
+        #SAMPLE PROTEIN IDs that are cluster specific (add empty set for baseclass = zero scaled proteins)
+        clusterSpecificProteinIdxs = [[]]
+        for idx in range(self.parameters.numberOfClusters):
+            subset = random.sample(range(self.parameters.ProteinNumber), self.parameters.numberClusterSpecificProteins[idx])
+            clusterSpecificProteinIdxs.append(subset)
+            
+        #CLUSTER SPECIFIC PROTEIN-DISTRIBUTION-PARAMETRIZATION (scaled for proteins)
+        for idx in range(self.parameters.numberOfClusters):
+            distributions += self.__generateProteinDistributions(clusterSpecificProteinIdxs, idx)
 
-        #make covariance matrix:
-        #sets of proteins that are intercorrelated
-        correlationProteinsSets = []
-        correlationProteinsSets = self.__groupProteinsForCorrelationSets()
-        #proteins for which CORRELATIONS are SCALED differently
-        scaledCorrelationIdxs = self.correlationSets
-        scaledCorrelationIdxs.insert(0, [])
-        #scaling factors for all correlations in the scaledCorrelationIdxs
-        #for baseline it is 1.0, but it should anyways never be called
-        correlationScalingFactors = self.correlationFactors
-        correlationScalingFactors.insert(0, 1.0)
-        for idx in range(self.additionalClusters + 1):
-            covariancematrix = self.__generateCovarianceMatrix(correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx)
+        #CLUSTER SPECIFIC COVARIANCE MATRIX (scaled for protein-apirs)
+        covariancematrix =  self.__generateClusterSpecificCovarianceMatrices()
 
-        #sample data from copula for every cluster
-        for idx in range(self.additionalClusters + 1):
+        #sample data from copula for every cluster and combine
+        for idx in range(self.parameters.numberOfClusters):
             groundTruthDataList.append(self.__sampleCellTimesProteinMatrix(self.cellPercentages[idx], 
                                                 distributions[idx],
                                                 covariancematrix[idx],
@@ -644,20 +631,9 @@ class SingleCellSimulation():
         combined_df = pd.concat(groundTruthDataList, ignore_index=True)
         return(combined_df)
 
-    def __generateGroundTruthWithCopula(self):
-
-        #generate data per cluster
-        #generate ground truth for the base cluster
-        __generateGroundTruthPerCluster()
-        #generate ground truth for every additional cluster
-        #(with cluster specific proteinScales, correlationScales)
-        self.parameters.additionalClusters
-        
-        #combine all clusters
-
-
     """ model correlated proteins """
-    def __insert_correlations_between_proteins(self, data):
+    #this is without introducing correlations (outdated version)
+    def __insert_correlations_between_proteins_cholevski(self, data):
         #sort data first according to sample
         #(when we change values for certain proteins we add values of another protein, the returned vector
         # might not be in the same order of sampels if not sorted first)
@@ -665,7 +641,7 @@ class SingleCellSimulation():
 
         for corr in self.parameters.proteinCorrelations:
             #origional negbinom distribution + factor times dependant protein count
-            newCorrelatedValues = self.__correlate_proteins(data,
+            newCorrelatedValues = self.__correlate_proteins_cholevski(data,
                                                             corr.prot1,
                                                             corr.prot2, 
                                                             corr.factor)
@@ -703,7 +679,8 @@ class SingleCellSimulation():
         return(concatedSamples)
 
     """ Generating GroundTruth of the Protein abundancies in all single cells """
-    def __generateGroundTruth(self, parameters):
+    #outdated method without correlations to sample from neg. binom distribution for simulations
+    def __generateSimpleGroundTruth(self, parameters):
         #generate matrix of cells * proteinCounts
         proteinCountMatrix = self.__generate_neg_binom_distributed_protein_counts()
         
@@ -847,50 +824,39 @@ class SingleCellSimulation():
     2. simulates the protein count detection
     """
     def simulateData(self):
-        
-        '''TODO: DELETE'''
-        #generate ground truth of the protein levels in each cell
-        self.__generateGroundTruth(self.parameters)
-        #add additional features into ground truth data
-        if(len(self.parameters.proteinCorrelations) > 0):
-            self.__insert_correlations_between_proteins(self.groundTruthData)
-        if(not (self.parameters.treatmentVector is None)):
-            self.__insert_treatment_effect(self.groundTruthData)
-
+                
+        #for every cluster: scale protein distributions; scale correlations; sample using gaussian copula
+        # (protein counts scaled/ correlations scaled/ and then sampled from theirs dists by copula)
         self.__generateGroundTruthWithCopula(self.parameters)
 
-
+        #not interesting at this point (initialy thought of AB duplicates for normalization)
         if(self.parameters.abDuplicates > 1):
             self.groundTruthData = self.__insert_ab_duplicates(self.groundTruthData)
-        
-        #rescale to origional reads per sample; not used at the moment
-        #it seems like scatterplots show corelations for wanted and no correlations
-        #for unwated with and without rescaling
 
-        #add additional data pertubations
+        #scale counts for batch effects (NOT USED AT THIS POINT)
         perturbedData = self.groundTruthData.copy(deep=True)
         if(not (self.parameters.batchFactors is None)):
             perturbedData = self.__insert_batch_effect(perturbedData)
             self.__add_batch_effect_to_ground_truth(perturbedData)
+            
+        #scale counts for library size effects
         if(not (self.parameters.libSize[0]==1 and self.parameters.libSize[1]==1)):
             perturbedData = self.__insert_libsize_effect(perturbedData)
 
-        
-
+    
         #simulate AB binding efficiency
         #discard a fraction of proteinCounts as no AB has bound to them
-        #deleted for now
         #tmp_simulatedData = self.__simulate_ab_binding(perturbedData)
-
-        #self.ab_sampled = tmp_simulatedData
 
         #simulate PCR amplification and sequencing
         #sampling with replacement to simulate PCR amplification as well as missing out on reads during washing/ sequencing
         #tmp_simulatedData = self.__simulate_sequencing_binding_2(perturbedData)
+        
+        #add random noise to simulations
         tmp_simulatedData = self.__perturb(perturbedData)
 
-        self.simulatedData = tmp_simulatedData
         #remove negative counts from data, and substitute with zero
+        self.simulatedData = tmp_simulatedData
         self.simulatedData = self.simulatedData.applymap(replace_negatives)
 
         return(self.simulatedData)
