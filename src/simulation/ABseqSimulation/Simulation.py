@@ -43,7 +43,7 @@ def replace_negatives(x):
 #introduce a biological variance matrix: e.g. neg. binomial distributed
 #introduce a technical variance matrix: AB amount differences, annealing differences
 
-def __convert_neg_binom_params(mu, size):
+def convert_neg_binom_params(mu, size):
     p = size/(size+mu)
     n = mu*p/(1.0 - p)
     return n, p
@@ -109,9 +109,9 @@ class Parameters():
     numberClusterSpecificProteins=[]
 
     correlationFactors=[]
-    correlationSets=None
+    correlationSets=[]
 
-    cellPercentages=[100]
+    cellPercentages=[]
 
     cellABCountAtGroundtruth = {}
 
@@ -254,10 +254,7 @@ class Parameters():
                 for element in info:
                     newSet = ast.literal_eval(element)
                     newSet = [int(element) for element in newSet]
-                    if(self.correlationSets is not None):
-                        self.correlationSets.append(newSet)
-                    else:
-                        self.correlationSets = [newSet]            
+                    self.correlationSets.append(newSet)
             line = file.readline()
         #we need exactly one abundance/ correlation/ percentage factor for every clusters
         self.numberOfClusters = len(self.cellPercentages) 
@@ -267,7 +264,7 @@ class Parameters():
         assert ( len(self.correlationFactors) == self.numberOfClusters), "Error in ini file: cellPercentages and correlationFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
         assert ( len(self.correlationSets) == self.numberOfClusters), "Error in ini file: cellPercentages and correlationSets are of different length (we need ONE set of diff-corr protein distributions per ADDITIONAL CLUSTER)"
 
-        assert sum(self.cellPercentages) == 100, "Sum of cellPercentages must be 100"
+        assert (sum(self.cellPercentages) == 100 or self.cellPercentages == []), "Sum of cellPercentages must be 100"
         if(self.correlationSets is not None):
             for CorrSet in self.correlationSets:
                 assert len(CorrSet)<=len(self.proteinCorrelationDists), "CorrelationSet Error: per cluster we can only scale as many correlationSets as there are distirbutions of correlations to sample from..."
@@ -276,6 +273,11 @@ class Parameters():
             totalNumberIntercorrelatedProteins += correlationDist.number
         assert(totalNumberIntercorrelatedProteins <= self.ProteinNumber), "The number of protein-protein correlation stated in the 3rd parameters in proteinCorrelationDists does not sum up to the number of proteins measured, we have more correlations than possible!!!"
 
+        #set cellPercentages to 100 if no clusters exist
+        if(self.cellPercentages == []):
+            self.cellPercentages = [100]
+            self.numberOfClusters = 1
+            
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
 
@@ -501,7 +503,7 @@ class SingleCellSimulation():
     def __generateCovarianceMatrix(self, correlationProteinsSets, scaledSetsPerCluster, correlationScalingFactors, clusterIdx):
 
         #initialize zero covariance matrix
-        covMat = [[0.0 for _ in range(self.ProteinNumber)] for _ in range(self.ProteinNumber)]
+        covMat = [[0.0 for _ in range(self.parameters.ProteinNumber)] for _ in range(self.parameters.ProteinNumber)]
 
         #iterate through all protein-pairs (triangular matrix - but fill all values)
         for i in range(self.parameters.ProteinNumber):
@@ -536,6 +538,7 @@ class SingleCellSimulation():
             
         distributions = []
         protein = 0
+
         proteinsToScale = scaledProteinIdxs[clusterIdx]
         for proteinRange in self.parameters.ProteinLevels:
             for i in range(proteinRange.number):
@@ -548,23 +551,28 @@ class SingleCellSimulation():
                 #variance of neg. binom is constant for now, which could also be sampeld from dist.
                 size = self.parameters.size
 
-                n,p = __convert_neg_binom_params(mu, size)
+                n,p = convert_neg_binom_params(mu, size)
                 tmpDict = {'loc': 0.0, 'n': n, 'p': p, 'type': NegBinomUnivariate}
                 distributions.append(tmpDict)
+
                 protein += 1
 
         return(distributions)
     
     def __sampleCellTimesProteinMatrix(self, percentage, dist, cov, clusterIdx):
 
+
+        print(cov)
+        print(dist)
+
         copula_params = {}
         copula_params['correlation'] = cov
         copula_params['univariates'] = dist
         copula_params['type'] = copulas.multivariate.gaussian.GaussianMultivariate
-        copula_params['columns'] = ["AB" + str(number) for number in range(self.parameters.ProteinNumber)]
+        copula_params['columns'] = ["AB" + str(number) for number in range(self.parameters.ProteinNumber)]        
         copula_model = Multivariate.from_dict(copula_params)
 
-        cellNumber = round(self.CellNumber * (percentage/100.0))
+        cellNumber = round(self.parameters.CellNumber * (percentage/100.0))
         copulaResult = copula_model.sample(cellNumber)
 
         #bring copulaResult in the right format
@@ -583,6 +591,8 @@ class SingleCellSimulation():
          
     def __generateClusterSpecificCovarianceMatrices(self):
     
+        covariancematrix = []
+        
         # list of protein Idx for every dist in proteinCorrelationDists
         # we have the number of intercorrelated proteins from proteinCorrelationDist variable
         # now we sample this number fo proteins for every proteinDist that is stated in the variable
@@ -598,32 +608,34 @@ class SingleCellSimulation():
         correlationScalingFactors = self.parameters.correlationFactors
         correlationScalingFactors.insert(0, 1.0)
         for idx in range(self.parameters.numberOfClusters):
-            covariancematrix += self.__generateCovarianceMatrix(correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx)
+            covariancematrix.append(self.__generateCovarianceMatrix(
+                correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx))
 
+        return(covariancematrix)
             
     def __generateGroundTruthWithCopula(self):
         # ALL LIST ORDERED BY CLUSTER
         distributions = [] #list of the cluster specific distribution for proteins (scaled by factors for clusters)
         #it is a list of lists: for every cluster, for every proteins, the neg.binom. parametrization
-        covariancematrix = [] # list of cluster specific covariance matrices
         groundTruthDataList = []
 
         #SAMPLE PROTEIN IDs that are cluster specific (add empty set for baseclass = zero scaled proteins)
         clusterSpecificProteinIdxs = [[]]
-        for idx in range(self.parameters.numberOfClusters):
-            subset = random.sample(range(self.parameters.ProteinNumber), self.parameters.numberClusterSpecificProteins[idx])
-            clusterSpecificProteinIdxs.append(subset)
-            
+        if(self.parameters.numberOfClusters > 1):
+            for idx in range(self.parameters.numberOfClusters):
+                subset = random.sample(range(self.parameters.ProteinNumber), self.parameters.numberClusterSpecificProteins[idx])
+                clusterSpecificProteinIdxs.append(subset)
+                
         #CLUSTER SPECIFIC PROTEIN-DISTRIBUTION-PARAMETRIZATION (scaled for proteins)
         for idx in range(self.parameters.numberOfClusters):
-            distributions += self.__generateProteinDistributions(clusterSpecificProteinIdxs, idx)
+            distributions.append(self.__generateProteinDistributions(clusterSpecificProteinIdxs, idx))
 
-        #CLUSTER SPECIFIC COVARIANCE MATRIX (scaled for protein-apirs)
+        #CLUSTER SPECIFIC COVARIANCE MATRIX (scaled for protein-apirs) - list: one per cluster
         covariancematrix =  self.__generateClusterSpecificCovarianceMatrices()
-
+        print(covariancematrix)
         #sample data from copula for every cluster and combine
         for idx in range(self.parameters.numberOfClusters):
-            groundTruthDataList.append(self.__sampleCellTimesProteinMatrix(self.cellPercentages[idx], 
+            groundTruthDataList.append(self.__sampleCellTimesProteinMatrix(self.parameters.cellPercentages[idx], 
                                                 distributions[idx],
                                                 covariancematrix[idx],
                                                 idx))
@@ -827,7 +839,7 @@ class SingleCellSimulation():
                 
         #for every cluster: scale protein distributions; scale correlations; sample using gaussian copula
         # (protein counts scaled/ correlations scaled/ and then sampled from theirs dists by copula)
-        self.__generateGroundTruthWithCopula(self.parameters)
+        self.groundTruthData = self.__generateGroundTruthWithCopula()
 
         #not interesting at this point (initialy thought of AB duplicates for normalization)
         if(self.parameters.abDuplicates > 1):
