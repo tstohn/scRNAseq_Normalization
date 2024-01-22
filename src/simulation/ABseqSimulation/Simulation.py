@@ -73,7 +73,7 @@ class Parameters():
     #technical variation matrix
     
     #data types to hold proteinlevels/dist/correlations which are inserted in dictionaries mapping them to individual proteins later on
-    ProteinLevel = namedtuple('ProteinLevel', ['start', 'end', 'number'])
+    ProteinMeanDist = namedtuple('ProteinLevel', ['mu', 'size', 'number'])
     ProteinDist = namedtuple('proteinDist',['mu','size'])
     ProteinCorrelation = namedtuple('ProteinCorrelation', ['mean', 'std', 'number'])
 
@@ -139,7 +139,7 @@ class Parameters():
 
                 for element in info:
                     parts = re.match(("\s*\[\s*\[\s*([0-9]*)\s*,\s*([0-9]*)\s*\]\s*,\s*([0-9]*)\s*\]\s*"), element)
-                    newProteinLevels = self.ProteinLevel(int(parts[1]), int(parts[2]), int(parts[3]))
+                    newProteinLevels = self.ProteinMeanDist(int(parts[1]), int(parts[2]), int(parts[3]))
                     print(newProteinLevels)
                     proteinNumber += newProteinLevels.number
                     if(self.ProteinLevels is not None):
@@ -149,7 +149,7 @@ class Parameters():
                 self.ProteinNumber = proteinNumber
             elif(str.startswith(line, "size=")):
                 info = re.match(("size=(.*)"), line)
-                self.size = float(info[1].rstrip("\n"))
+                self.size = info[1].rstrip("\n")
             elif(str.startswith(line, "CellNumber=")):
                 info = re.match(("CellNumber=(.*)"), line)
                 self.CellNumber = int(info[1].rstrip("\n"))
@@ -298,6 +298,12 @@ class SingleCellSimulation():
     def __init__(self, parameters):
         self.parameters = parameters
 
+    """ we see a strong dependance of size on mu for single-cell protein distributions, therefore calualte size depending on mu"""
+    def __calculate_size_from_mu(self, mu):
+        size_formula_with_mu_insertion = self.parameters.size.replace('X', str(mu))
+        result = eval(size_formula_with_mu_insertion) 
+        return(result)
+        
     """ functions to simulate the cell * proteinCount matrix"""
     def __generate_neg_binom_distributed_protein_counts(self):
         proteinCount = 1
@@ -538,20 +544,26 @@ class SingleCellSimulation():
             
         distributions = []
         protein = 0
-
+           
         proteinsToScale = scaledProteinIdxs[clusterIdx]
         for proteinRange in self.parameters.ProteinLevels:
-            for i in range(proteinRange.number):
-                #for every protein simulate a neg.binom distibuted number for every cell
-                mu = random.randrange(proteinRange.start, proteinRange.end)
+            
+            #generate mu/ size for all proteins of the proteinRange distribution (sampled from distribution of means and the calculating size)
+            dist = ProteinCountDistribution(proteinRange.number, proteinRange.mu, proteinRange.size)
+            proteinCountVector = dist.distributionValues() #vector of mean values for all proteins for this proteinRange-distribution
+             
+            for i in range(proteinRange.number):       
+                
+                #get the very specific mu/ size for the protein i in this proteinRange-distribution
+                mu_tmp = proteinCountVector[i]
+                size_tmp = self.__calculate_size_from_mu(mu_tmp)
+                         
                 #sclae mu by cluster specific scaling factor
                 if(protein in proteinsToScale):
                     assert clusterIdx != 0, "The zero Cluster(baseline, not sclaed) can not have a scaling factor"
-                    mu = mu * self.parameters.abundanceFactors[clusterIdx]
-                #variance of neg. binom is constant for now, which could also be sampeld from dist.
-                size = self.parameters.size
+                    mu_tmp = mu_tmp * self.parameters.abundanceFactors[clusterIdx]
 
-                n,p = convert_neg_binom_params(mu, size)
+                n,p = convert_neg_binom_params(mu_tmp, size_tmp)
                 tmpDict = {'loc': 0.0, 'n': n, 'p': p, 'type': NegBinomUnivariate}
                 distributions.append(tmpDict)
 
