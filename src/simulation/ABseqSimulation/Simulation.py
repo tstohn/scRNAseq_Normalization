@@ -138,8 +138,8 @@ class Parameters():
                 info = str(info[1]).split(";")
 
                 for element in info:
-                    parts = re.match(("\s*\[\s*\[\s*([0-9]*)\s*,\s*([0-9]*)\s*\]\s*,\s*([0-9]*)\s*\]\s*"), element)
-                    newProteinLevels = self.ProteinMeanDist(int(parts[1]), int(parts[2]), int(parts[3]))
+                    parts = re.match(("\s*\[\s*\[\s*([0-9]*)\s*,\s*(\d+[\.\d+]*)\s*\]\s*,\s*([0-9]*)\s*\]\s*"), element)
+                    newProteinLevels = self.ProteinMeanDist(int(parts[1]), float(parts[2]), int(parts[3]))
                     print(newProteinLevels)
                     proteinNumber += newProteinLevels.number
                     if(self.ProteinLevels is not None):
@@ -300,7 +300,7 @@ class SingleCellSimulation():
 
     """ we see a strong dependance of size on mu for single-cell protein distributions, therefore calualte size depending on mu"""
     def __calculate_size_from_mu(self, mu):
-        size_formula_with_mu_insertion = self.parameters.size.replace('X', str(mu))
+        size_formula_with_mu_insertion = self.parameters.size.replace('MU', str(mu))
         result = eval(size_formula_with_mu_insertion) 
         return(result)
         

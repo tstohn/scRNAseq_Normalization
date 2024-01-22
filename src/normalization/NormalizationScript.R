@@ -133,6 +133,7 @@ remove_batch_effect<-function(data, log_transform = FALSE)
 run_tmm<-function(data)
 {
   print("RUNNING TMM NORMALIZATION")
+
   #TMM takes data in a matrix of features X samples
   countdata <- data %>%
     select(sample_id, ab_id, ab_count) %>%
@@ -429,7 +430,10 @@ run_normalization<-function(dataset, method)
       ab_type=columns[6]
     ) %>%
     prefilter_dataset(dataset_processing_variables)
-  
+  #sample_id might exist of numbers only 
+  #(explicitely set to string since certain tibble-processing methods change numeric columns to string resulting in incompatabilities)
+  data$sample_id <- as.character(data$sample_id)
+
   print(paste("RUN NORMALIZATION[", method, "] FOR DATASET[", datapath, "]", sep = ""))
   if(method=="TMM")
   {

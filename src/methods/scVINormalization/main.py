@@ -15,6 +15,11 @@ from os.path import isfile, join
 
 def add_scVInormalized_data(data, normData):
     melted_normData = pd.melt(normData, id_vars=['sample_id'], var_name='ab_id', value_name='ab_count_normalized')
+    #merge with origional data (make surecolumn are of same data type)
+    data.sample_id = data.sample_id.astype(str)
+    melted_normData.sample_id = melted_normData.sample_id.astype(str)
+    data.ab_id = data.ab_id.astype(str)
+    melted_normData.ab_id = melted_normData.ab_id.astype(str)
     merged_data = data.merge(melted_normData, on=['sample_id', 'ab_id'], how='left')
     return(merged_data)
 
