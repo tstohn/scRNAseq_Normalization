@@ -140,7 +140,6 @@ class Parameters():
                 for element in info:
                     parts = re.match(("\s*\[\s*\[\s*([0-9]*)\s*,\s*(\d+[\.\d+]*)\s*\]\s*,\s*([0-9]*)\s*\]\s*"), element)
                     newProteinLevels = self.ProteinMeanDist(int(parts[1]), float(parts[2]), int(parts[3]))
-                    print(newProteinLevels)
                     proteinNumber += newProteinLevels.number
                     if(self.ProteinLevels is not None):
                         self.ProteinLevels.append(newProteinLevels)
@@ -202,13 +201,11 @@ class Parameters():
             elif(str.startswith(line, "proteinCorrelationDists=")): 
                 #same for as ProteinLevels: [[mu, sd, #proteins]; ...] 
                 # with as many Correlation Distributions as wanted
-                info = re.match(("proteinCorrelations=\[(.*)\]"), line)
+                info = re.match(("proteinCorrelationDists=\[(.*)\]"), line)
                 info = str(info[1]).split(";")
                 for element in info:
-                    parts = re.match(("\s*\[\s*\[\s*([0-9]*)\s*,\s*([0-9]*)\s*\]\s*,\s*([0-9]*)\s*\]\s*"), element)
-                    newCorrDist = self.ProteinCorrelation(float(parts[1]), float(parts[2]), float(parts[3]))
-                    numberProteinCorrelations = numberProteinCorrelations + newCorrDist.number
-                    print(newCorrDist)
+                    parts = re.match(("\s*\[\s*(-*\d+[\.\d+]*)\s*,\s*(\d+[\.\d+]*)\s*,\s*([0-9]*)\s*\]\s*"), element)
+                    newCorrDist = self.ProteinCorrelation(float(parts[1]), float(parts[2]), int(parts[3]))
                     corrNumber += newCorrDist.number
                     if(self.proteinCorrelationDists is not None):
                         self.proteinCorrelationDists.append(newCorrDist)
@@ -224,24 +221,28 @@ class Parameters():
             #CLUSTER VARIABLES
             elif(str.startswith(line, "abundanceFactors=")):
                 info = re.match(("abundanceFactors=(.*)"), line.rstrip('\n'))
+                info = info[1].rstrip("\n")
                 assert info[0] == "[", "First character must be '[' for following line in the ini file: " + line
                 assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line
                 self.abundanceFactors = ast.literal_eval(info)
                 self.abundanceFactors = [float(element) for element in self.abundanceFactors]
             elif(str.startswith(line, "numberClusterSpecificProteins=")):
-                info = re.match(("numberProteins=(.*)"), line.rstrip('\n'))
+                info = re.match(("numberClusterSpecificProteins=(.*)"), line.rstrip('\n'))
+                info = info[1].rstrip("\n")
                 assert info[0] == "[", "First character must be '[' for following line in the ini file: " + line
                 assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line
                 self.numberClusterSpecificProteins = ast.literal_eval(info)
                 self.numberClusterSpecificProteins = [int(element) for element in self.numberClusterSpecificProteins]
             elif(str.startswith(line, "correlationFactors=")):
                 info = re.match(("correlationFactors=(.*)"), line.rstrip('\n'))
+                info = info[1].rstrip("\n")
                 assert info[0] == "[", "First character must be '[' for following line in the ini file: " + line
-                assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line
+                assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line                
                 self.correlationFactors = ast.literal_eval(info)
                 self.correlationFactors = [float(element) for element in self.correlationFactors]
             elif(str.startswith(line, "cellPercentages=")):
                 info = re.match(("cellPercentages=(.*)"), line.rstrip('\n'))
+                info = info[1].rstrip("\n")
                 assert info[0] == "[", "First character must be '[' for following line in the ini file: " + line
                 assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line
                 self.cellPercentages = ast.literal_eval(info)
@@ -257,14 +258,21 @@ class Parameters():
                     self.correlationSets.append(newSet)
             line = file.readline()
         #we need exactly one abundance/ correlation/ percentage factor for every clusters
-        self.numberOfClusters = len(self.cellPercentages) 
-        assert ( len(self.abundanceFactors)   == self.numberOfClusters), "Error in ini file: cellPercentages and abundanceFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
-        assert ( len(self.numberClusterSpecificProteins)   == self.numberOfClusters), "Error in ini file: cellPercentages and number of scaled proteins per cluster <numberProteins> are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
+        self.numberOfClusters = len(self.cellPercentages)
+        #set cellPercentages to 100 if no clusters exist
+        if(self.cellPercentages == []):
+            self.cellPercentages = [100]
+            self.numberOfClusters = 1
+            
+        assert ( len(self.abundanceFactors) + 1   == self.numberOfClusters), "Error in ini file: cellPercentages and abundanceFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
+        assert ( len(self.numberClusterSpecificProteins) + 1   == self.numberOfClusters), "Error in ini file: cellPercentages and number of scaled proteins per cluster <numberProteins> are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
+        
         #we also have cluster specific correlation variables
-        assert ( len(self.correlationFactors) == self.numberOfClusters), "Error in ini file: cellPercentages and correlationFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
-        assert ( len(self.correlationSets) == self.numberOfClusters), "Error in ini file: cellPercentages and correlationSets are of different length (we need ONE set of diff-corr protein distributions per ADDITIONAL CLUSTER)"
+        if( len(self.correlationFactors) > 0 or len(self.correlationSets) > 0):
+            assert ( len(self.correlationFactors) + 1 == self.numberOfClusters), "Error in ini file: cellPercentages and correlationFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
+            assert ( len(self.correlationSets) + 1 == self.numberOfClusters), "Error in ini file: cellPercentages and correlationSets are of different length (we need ONE set of diff-corr protein distributions per ADDITIONAL CLUSTER)"
 
-        assert (sum(self.cellPercentages) == 100 or self.cellPercentages == []), "Sum of cellPercentages must be 100"
+        assert (sum(self.cellPercentages) == 100), "Sum of cellPercentages must be 100"
         if(self.correlationSets is not None):
             for CorrSet in self.correlationSets:
                 assert len(CorrSet)<=len(self.proteinCorrelationDists), "CorrelationSet Error: per cluster we can only scale as many correlationSets as there are distirbutions of correlations to sample from..."
@@ -272,11 +280,6 @@ class Parameters():
         for correlationDist in self.proteinCorrelationDists:
             totalNumberIntercorrelatedProteins += correlationDist.number
         assert(totalNumberIntercorrelatedProteins <= self.ProteinNumber), "The number of protein-protein correlation stated in the 3rd parameters in proteinCorrelationDists does not sum up to the number of proteins measured, we have more correlations than possible!!!"
-
-        #set cellPercentages to 100 if no clusters exist
-        if(self.cellPercentages == []):
-            self.cellPercentages = [100]
-            self.numberOfClusters = 1
             
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
@@ -489,22 +492,37 @@ class SingleCellSimulation():
             proteinList = [element for element in proteinList if element not in subset]
         return(correlationProteinsSets)
     
-    def __sampleFromCorrelationDist(self, setIdx=None):
+    def __sampleFromCorrelationDist(self, setIdx=None, scalingFactor = 1.0):
         mean = 0.0
         std = 0.0
         if(setIdx is None):
-            mean = self.proteinCorrelationMean
-            std = self.proteinCorrelationStd
+            mean = self.parameters.proteinCorrelationMean * scalingFactor
+            std = self.parameters.proteinCorrelationStd
         else:
-            mean = self.proteinCorrelationDists[setIdx].mean
-            std = self.proteinCorrelationDists[setIdx].std
+            mean = self.parameters.proteinCorrelationDists[setIdx].mean * scalingFactor
+            std = self.parameters.proteinCorrelationDists[setIdx].std
 
         corr = np.random.normal(mean, std)
         return(corr)
 
+    def __isCorrelationPair(self, correlationProteinsSets, i, j):
+        #if the pair is in any of the correlation sets
+        for setIdx in range(len(self.parameters.proteinCorrelationDists)):
+            #if the pair is in a Set draw from that dist
+            if( (i in correlationProteinsSets[setIdx]) and 
+                (j in correlationProteinsSets[setIdx])):
+                    return setIdx
+        return -1            
+                            
+    def __isScaledPair(self, setIdx, scaledSetsPerCluster, clusterIdx):                      
+        if(len(scaledSetsPerCluster) > 1 and setIdx in scaledSetsPerCluster[clusterIdx]):
+            assert clusterIdx!=0, "baseline cluster SHOULD NOT GET CORRELATIONS SCALED!!"
+            return(True)
+        return(False)
+
     # 1.) correlationProteinsSets: list of lists, where every sublist contains all proteins that r intercorrelated/ order of proteinCorrelationDist
-    # 2.a) scaledSetsPerCluster: list of lists, where every sublist contains which correlationproteinSets should be scaled: ordered by cluster
-    # 2.b) correlationScalingFactors: list of all the scaling factors for the proteinSets that r supposed to be scaled: ordered by clusters
+    # 2.a) scaledSetsPerCluster: list of lists, where every sublist contains which correlationproteinSets should be scaled: ordered by cluster (first element zero for baseline)
+    # 2.b) correlationScalingFactors: list of all the scaling factors for the proteinSets that r supposed to be scaled: ordered by clusters (first element zero for baseline)
     # 3.) clusterIdx: current cluster with 0==Baseline
     def __generateCovarianceMatrix(self, correlationProteinsSets, scaledSetsPerCluster, correlationScalingFactors, clusterIdx):
 
@@ -519,23 +537,26 @@ class SingleCellSimulation():
                     covMat[j][i] = 1.0
                 else:
                     #check if pair is part of a correlated set
-                    for setIdx in range(len(correlationProteinsSets)):
-                        #if the pair is in a Set draw from that dist
-                        if((i in correlationProteinsSets[setIdx]) and (j in correlationProteinsSets[setIdx])):
-                            #setIdx is used to access the right mean/std to smaple a correlation between the pair
-                            corr = self.__sampleFromCorrelationDist(setIdx)
-                            #if current set should also be scaled for current cluster
-                            #for baseline clusterIdx==0 scaledCorrelationIdxs should be []
-                            if(setIdx in scaledSetsPerCluster[clusterIdx]):
-                                scalingFactor = correlationScalingFactors[clusterIdx]
-                                assert clusterIdx!=0, "baseline cluster SHOULD NOT GET CORRELATIONS SCALED!!"
-                                #correaltion can not be > 1.0
-                                corr = min(1.0, corr * scalingFactor)
-                        #else draw from baseline
-                        else:
-                            corr = self.__sampleFromCorrelationDist(None)
-                        covMat[i][j] = corr
-                        covMat[j][i] = corr
+                    #if true returns setIdx, otherwise minus one
+                    setIdx = self.__isCorrelationPair(correlationProteinsSets, i, j)
+                    isScaled = False
+                    if(setIdx >= 0):
+                        isScaled = self.__isScaledPair(setIdx, scaledSetsPerCluster, clusterIdx)                  
+
+                    if( (setIdx >= 0) and isScaled):
+                        scalingFactor = correlationScalingFactors[clusterIdx]
+                        corr = self.__sampleFromCorrelationDist(setIdx, scalingFactor)
+                    elif(setIdx >= 0):
+                        corr = self.__sampleFromCorrelationDist(setIdx)
+                    else:
+                        corr = self.__sampleFromCorrelationDist(None)
+ 
+                    if(corr > 1.0): 
+                        corr = 1.0
+                    elif(corr < -1.0): 
+                        corr = -1.0
+                    covMat[i][j] = corr
+                    covMat[j][i] = corr
 
         return(covMat)
         
@@ -544,7 +565,10 @@ class SingleCellSimulation():
             
         distributions = []
         protein = 0
-           
+        #we need to insert 1.0 abudnace factor for baseline clusterIdx=0
+        abundanceFactorsWithBaseline = self.parameters.abundanceFactors
+        abundanceFactorsWithBaseline.insert(0, 1.0) #base cluster has no sclaing of protein abudnance (so times factor 1.0)
+
         proteinsToScale = scaledProteinIdxs[clusterIdx]
         for proteinRange in self.parameters.ProteinLevels:
             
@@ -561,7 +585,7 @@ class SingleCellSimulation():
                 #sclae mu by cluster specific scaling factor
                 if(protein in proteinsToScale):
                     assert clusterIdx != 0, "The zero Cluster(baseline, not sclaed) can not have a scaling factor"
-                    mu_tmp = mu_tmp * self.parameters.abundanceFactors[clusterIdx]
+                    mu_tmp = mu_tmp * abundanceFactorsWithBaseline[clusterIdx]
 
                 n,p = convert_neg_binom_params(mu_tmp, size_tmp)
                 tmpDict = {'loc': 0.0, 'n': n, 'p': p, 'type': NegBinomUnivariate}
@@ -573,10 +597,9 @@ class SingleCellSimulation():
     
     def __sampleCellTimesProteinMatrix(self, percentage, dist, cov, clusterIdx):
 
-
-        print(cov)
+        print(np.round(cov,2))
         print(dist)
-
+        
         copula_params = {}
         copula_params['correlation'] = cov
         copula_params['univariates'] = dist
@@ -612,6 +635,7 @@ class SingleCellSimulation():
         #stores a list of lists: lists for every proteinCorrelationDist with a list of all proteins belonging to this dist
         correlationProteinsSets = self.__groupProteinsForCorrelationSets()
         
+        print(correlationProteinsSets)
         #proteinSet from proteinCorrelationDist for which CORRELATIONS are SCALED differently
         scaledCorrelationIdxs = self.parameters.correlationSets
         scaledCorrelationIdxs.insert(0, []) #base cluster has no sclaing of correlations
@@ -623,6 +647,7 @@ class SingleCellSimulation():
             covariancematrix.append(self.__generateCovarianceMatrix(
                 correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx))
 
+        print(np.round(covariancematrix,2))
         return(covariancematrix)
             
     def __generateGroundTruthWithCopula(self):
@@ -634,7 +659,9 @@ class SingleCellSimulation():
         #SAMPLE PROTEIN IDs that are cluster specific (add empty set for baseclass = zero scaled proteins)
         clusterSpecificProteinIdxs = [[]]
         if(self.parameters.numberOfClusters > 1):
-            for idx in range(self.parameters.numberOfClusters):
+            #idices go only from 0 to clsuters-1, since we do not need to get clusterSpecificProtein nuber for baseline cluster,
+            #and the numberClusterSpecificProteins list is ordered starting from 0 with the first cluster, so that zero does not refer to baseline here
+            for idx in range(self.parameters.numberOfClusters-1):
                 subset = random.sample(range(self.parameters.ProteinNumber), self.parameters.numberClusterSpecificProteins[idx])
                 clusterSpecificProteinIdxs.append(subset)
                 
@@ -644,7 +671,7 @@ class SingleCellSimulation():
 
         #CLUSTER SPECIFIC COVARIANCE MATRIX (scaled for protein-apirs) - list: one per cluster
         covariancematrix =  self.__generateClusterSpecificCovarianceMatrices()
-        print(covariancematrix)
+        
         #sample data from copula for every cluster and combine
         for idx in range(self.parameters.numberOfClusters):
             groundTruthDataList.append(self.__sampleCellTimesProteinMatrix(self.parameters.cellPercentages[idx], 
