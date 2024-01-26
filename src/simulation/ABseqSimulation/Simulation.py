@@ -20,6 +20,8 @@ from NegativeBinomialCopulaWrapper import NegBinomUnivariate
 import copulas
 from copulas.univariate.base import BoundedType, ParametricType, ScipyModel
 from copulas.multivariate import Multivariate
+sys.path.append('./src/methods/nearest_correlation')
+from nearest_correlation import nearcorr
 
 def LINE():
     return sys._getframe(1).f_lineno
@@ -498,6 +500,9 @@ class SingleCellSimulation():
         if(setIdx is None):
             mean = self.parameters.proteinCorrelationMean * scalingFactor
             std = self.parameters.proteinCorrelationStd
+            print(self.parameters.proteinCorrelationStd)
+            print(str(mean))
+
         else:
             mean = self.parameters.proteinCorrelationDists[setIdx].mean * scalingFactor
             std = self.parameters.proteinCorrelationDists[setIdx].std
@@ -519,6 +524,29 @@ class SingleCellSimulation():
             assert clusterIdx!=0, "baseline cluster SHOULD NOT GET CORRELATIONS SCALED!!"
             return(True)
         return(False)
+    
+    #method according to Levandowski et. al 2009
+    # better than second method (from post see below) since it also introduces neg. correlations
+    # implementation based on matlab code from https://stats.stackexchange.com/questions/124538/how-to-generate-a-large-full-rank-random-correlation-matrix-with-some-strong-cor
+    # 0.2 - 10 is a 'good' parameter range for strong to weak correlations for 60 proteins (manually observed)
+    def __vineBeta(d, betaparam):
+        P = np.zeros((d, d))           # storing partial correlations
+        S = np.eye(d)
+
+        for k in range(1, d):
+            for i in range(k + 1, d):
+                P[k, i] = np.random.beta(betaparam, betaparam) # sampling from beta
+                P[k, i] = (P[k, i] - 0.5) * 2     # linearly shifting to [-1, 1]
+                p = P[k, i]
+                for l in range(k - 1, 0, -1): # converting partial correlation to raw correlation
+                    p = p * np.sqrt((1 - P[l, i] ** 2) * (1 - P[l, k] ** 2)) + P[l, i] * P[l, k]
+                S[k, i] = p
+                S[i, k] = p
+
+        # permuting the variables to make the distribution permutation-invariant
+        permutation = np.random.permutation(d)
+        S = S[permutation][:, permutation]
+        return S
 
     # 1.) correlationProteinsSets: list of lists, where every sublist contains all proteins that r intercorrelated/ order of proteinCorrelationDist
     # 2.a) scaledSetsPerCluster: list of lists, where every sublist contains which correlationproteinSets should be scaled: ordered by cluster (first element zero for baseline)
@@ -528,9 +556,10 @@ class SingleCellSimulation():
 
         #initialize zero covariance matrix
         covMat = [[0.0 for _ in range(self.parameters.ProteinNumber)] for _ in range(self.parameters.ProteinNumber)]
-
+        
         #iterate through all protein-pairs (triangular matrix - but fill all values)
         for i in range(self.parameters.ProteinNumber):
+            isWeighted = False
             for j in range(i, self.parameters.ProteinNumber):
                 if(i == j):
                     covMat[i][j] = 1.0
@@ -557,6 +586,15 @@ class SingleCellSimulation():
                         corr = -1.0
                     covMat[i][j] = corr
                     covMat[j][i] = corr
+                    
+        #check if matrix is positive semi definite
+        print("___BEORE___\n")
+        print(np.round(covMat,2))
+        minEigenVal = min(np.linalg.eigvals(covMat))
+        if(minEigenVal <0):
+            covMat = nearcorr(np.array(covMat), max_iterations=10000)
+        print("___AFTER___\n")
+        print(np.round(covMat,2))
 
         return(covMat)
         
@@ -647,7 +685,6 @@ class SingleCellSimulation():
             covariancematrix.append(self.__generateCovarianceMatrix(
                 correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx))
 
-        print(np.round(covariancematrix,2))
         return(covariancematrix)
             
     def __generateGroundTruthWithCopula(self):
@@ -894,7 +931,6 @@ class SingleCellSimulation():
         if(not (self.parameters.libSize[0]==1 and self.parameters.libSize[1]==1)):
             perturbedData = self.__insert_libsize_effect(perturbedData)
 
-    
         #simulate AB binding efficiency
         #discard a fraction of proteinCounts as no AB has bound to them
         #tmp_simulatedData = self.__simulate_ab_binding(perturbedData)
