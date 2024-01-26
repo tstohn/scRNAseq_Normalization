@@ -99,7 +99,12 @@ class Parameters():
     noiseExtrinsic=0.0
     proteinNoise=0.0
     
-    #CORRELATIONS
+    #CORRELATIONS 1.)
+    randomProteinCorrelations=0
+    betaParameter=0
+    betaFactors=[]
+    
+    #CORRELATIONS 2.)
     proteinCorrelationDists = []
     proteinCorrelationMean = 0.0
     proteinCorrelationStd = 0.4
@@ -199,7 +204,26 @@ class Parameters():
             elif(str.startswith(line, "proteinNoise=")):
                 info = re.match(("proteinNoise=(.*)"), line)
                 self.proteinNoise = float(info[1].rstrip("\n"))
-            #CORRELATION VARIABLES
+                
+            #CORRELATION VARIABLES 1.)
+            elif(str.startswith(line, "randomProteinCorrelations=")):
+                info = re.match(("randomProteinCorrelations=(.*)"), line.rstrip('\n'))
+                info = info[1].rstrip("\n")
+                self.randomProteinCorrelations = int(info)
+                assert self.randomProteinCorrelations==1 or self.randomProteinCorrelations==0, "randomProteinCorrelations can only be 0,1 for true/false of random protein values (keep in mind, you ether set this OR give correlation specific distributions to sample from)"
+            elif(str.startswith(line, "betaParameter=")):
+                info = re.match(("betaParameter=(.*)"), line.rstrip('\n'))
+                info = info[1].rstrip("\n")
+                self.betaParameter = float(info)
+                assert self.randomProteinCorrelations>0, "beta parameter must be > 0 (keep in mind, you ether set this OR give correlation specific distributions to sample from)"
+            elif(str.startswith(line, "betaFactors=")):
+                info = re.match(("betaFactors=(.*)"), line.rstrip('\n'))
+                info = info[1].rstrip("\n")
+                assert info[0] == "[", "First character must be '[' for following line in the ini file: " + line
+                assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line                
+                self.betaFactors = ast.literal_eval(info)
+                self.betaFactors = [float(element) for element in self.betaFactors]
+            #CORRELATION VARIABLES 2.)
             elif(str.startswith(line, "proteinCorrelationDists=")): 
                 #same for as ProteinLevels: [[mu, sd, #proteins]; ...] 
                 # with as many Correlation Distributions as wanted
@@ -265,6 +289,15 @@ class Parameters():
         if(self.cellPercentages == []):
             self.cellPercentages = [100]
             self.numberOfClusters = 1
+            
+        #CAUTION insufficient tests: we should test that ONLY 1.) or 2.) parameters are given, this is just a simple check
+        # that when randomCorrelations is set we dont have all the other parameters set as well...
+        if(self.randomProteinCorrelations==1):
+            assert self.betaParameter > 0, "betaParameter must be above 0 if we want to make random correlations"
+        if(self.randomProteinCorrelations==1):
+            assert self.proteinCorrelationDists == [], "for random correlations proteinCorrelationDists does not have to be set"
+            assert self.proteinCorrelationMean == 0.0, "for random correlations proteinCorrelationMean does not have to be set"
+            assert self.proteinCorrelationStd == 0.4, "for random correlations proteinCorrelationStd does not have to be set"
             
         assert ( len(self.abundanceFactors) + 1   == self.numberOfClusters), "Error in ini file: cellPercentages and abundanceFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
         assert ( len(self.numberClusterSpecificProteins) + 1   == self.numberOfClusters), "Error in ini file: cellPercentages and number of scaled proteins per cluster <numberProteins> are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
@@ -525,7 +558,7 @@ class SingleCellSimulation():
             return(True)
         return(False)
     
-    #method according to Levandowski et. al 2009
+    #method according to Lewandowski et. al 2009
     # better than second method (from post see below) since it also introduces neg. correlations
     # implementation based on matlab code from https://stats.stackexchange.com/questions/124538/how-to-generate-a-large-full-rank-random-correlation-matrix-with-some-strong-cor
     # 0.2 - 10 is a 'good' parameter range for strong to weak correlations for 60 proteins (manually observed)
@@ -660,10 +693,20 @@ class SingleCellSimulation():
             copulaResult.insert(0, 'cluster_id', ('cluster_' + str(clusterIdx)))
 
         return(copulaResult)
-            
-         
-    def __generateClusterSpecificCovarianceMatrices(self):
     
+    #1.) random correlaitons according to lewandowski        
+    def __generateRandomCorrelations(self):
+        covariancematrix = []
+        
+        betaFactors = self.parameters.betaFactors
+        betaFactors.insert(0, 1.0)
+        for idx in range(self.parameters.numberOfClusters):
+            covariancematrix.append(self.__vineBeta(self.parameters.numberProteins, betaFactors[idx]))
+
+        return(covariancematrix)
+    
+    #correlations drawn from specific distributions
+    def __generateSampledCorrelations(self):
         covariancematrix = []
         
         # list of protein Idx for every dist in proteinCorrelationDists
@@ -684,6 +727,16 @@ class SingleCellSimulation():
         for idx in range(self.parameters.numberOfClusters):
             covariancematrix.append(self.__generateCovarianceMatrix(
                 correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx))
+
+        return(covariancematrix)
+    
+    def __generateClusterSpecificCovarianceMatrices(self):
+        covariancematrix = []
+        
+        if(self.parameters.randomProteinCorrelations == 1):
+            covariancematrix = self.__generateRandomCorrelations()
+        else:
+            covariancematrix = self.__generateSampledCorrelations()
 
         return(covariancematrix)
             
