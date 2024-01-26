@@ -298,7 +298,9 @@ class Parameters():
             assert self.proteinCorrelationDists == [], "for random correlations proteinCorrelationDists does not have to be set"
             assert self.proteinCorrelationMean == 0.0, "for random correlations proteinCorrelationMean does not have to be set"
             assert self.proteinCorrelationStd == 0.4, "for random correlations proteinCorrelationStd does not have to be set"
-            
+            assert self.correlationSets == [], "for random correlations correlationSets does not have to be set"
+            assert self.correlationFactors == [], "for random correlations correlationFactors does not have to be set"
+
         assert ( len(self.abundanceFactors) + 1   == self.numberOfClusters), "Error in ini file: cellPercentages and abundanceFactors are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
         assert ( len(self.numberClusterSpecificProteins) + 1   == self.numberOfClusters), "Error in ini file: cellPercentages and number of scaled proteins per cluster <numberProteins> are of different length (we need ONE FACTOR per ADDITIONAL CLUSTER)"
         
@@ -562,7 +564,7 @@ class SingleCellSimulation():
     # better than second method (from post see below) since it also introduces neg. correlations
     # implementation based on matlab code from https://stats.stackexchange.com/questions/124538/how-to-generate-a-large-full-rank-random-correlation-matrix-with-some-strong-cor
     # 0.2 - 10 is a 'good' parameter range for strong to weak correlations for 60 proteins (manually observed)
-    def __vineBeta(d, betaparam):
+    def __vineBeta(self, d, betaparam):
         P = np.zeros((d, d))           # storing partial correlations
         S = np.eye(d)
 
@@ -701,7 +703,7 @@ class SingleCellSimulation():
         betaFactors = self.parameters.betaFactors
         betaFactors.insert(0, 1.0)
         for idx in range(self.parameters.numberOfClusters):
-            covariancematrix.append(self.__vineBeta(self.parameters.numberProteins, betaFactors[idx]))
+            covariancematrix.append(self.__vineBeta(self.parameters.ProteinNumber, betaFactors[idx]))
 
         return(covariancematrix)
     
