@@ -43,7 +43,10 @@ class NormalizedDataHandler:
 
     def __init_classification(self, data_name, classification_dict):
         data = self.data[data_name]
-        groundtruth = None
+        
+        #dictionary where key is the dataset (Groundtruth, TMM, CLR_COMPOSITIONS,..) and value a dataframe of corelations (see ab_spearman_correlation)
+        #dataframe has form index, SPvalues, Pvalues, AB1, AB2, cluster where index is of form AB1_AB2 
+        self.correlations = {}
 
         #organize data
         d_pivot=data.pivot(index='sample_id', columns='ab_id', values='ab_count_normalized')
@@ -126,10 +129,13 @@ class NormalizedDataHandler:
         self.sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATION_MEAN" + "\t" + "SPEARMAN_PVALUE_MEAN" + "\n")
 
         self.rmsd_sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/spearmanRMSD.tsv", "w+")
-        self.rmsd_sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATIONS_RMSD" + "\n")
+        self.rmsd_sp_results.write("CLUSTER_ID" + "\t" + "NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATIONS_RMSD" + "\n")
 
         self.abCorr = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/ABSpearmanCoeff.tsv", "w+")
-        self.abCorr.write("NORMALIZATION_METHOD" + "\t" + "AB1" + "\t" + "AB2" + "\t" + "GroundtruthCorr" "\t" + "NormCorr\n")
+        self.abCorr.write("CLUSTER_ID" + "\t" + "NORMALIZATION_METHOD" + "\t" + "AB1" + "\t" + "AB2" + "\t" + "GroundtruthCorr" "\t" + "NormCorr\n")
+
+        self.corrDetection = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/PercentageCorrelationDetection.tsv", "w+")
+        self.corrDetection.write("cluster"+ "\t" + "norm"+ "\t" + "minCorr"+ "\t" + "TP"+ "\t" + "TN"+ "\t" + "FP"+ "\t" + "FN" + "\n")
 
         #header is written when stored
         self.knnOverlapFilePath = "bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/knnOverlap.tsv"
@@ -355,6 +361,31 @@ class NormalizedDataHandler:
             graph.render(data_name + "decision_tree_graphivz")
 
     def __calculate_all_spearman_correlations(self, data):
+        
+        data_subset = data.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
+        d_pivot=data_subset.pivot(index = "sample_id", columns='ab_id', values='ab_count_normalized')
+        columns = d_pivot.columns.tolist()
+
+        #dataframe to fill with spearkman values
+        column_names = ["index", "SPvalues", "Pvalues", "AB1", "AB2"]
+        correlations = pd.DataFrame(columns = column_names)
+        for col_a, col_b in itertools.combinations(columns, 2):
+
+            SPvalues, Pvalues = stats.spearmanr(d_pivot.loc[:, col_a], d_pivot.loc[:, col_b])
+            newIndex = col_a + '_' + col_b
+
+            newCorrLine = pd.DataFrame.from_dict({'index': [newIndex], 'SPvalues': [SPvalues], 'Pvalues': [Pvalues], 'AB1': [col_a], 'AB2': [col_b]}, orient='columns')
+            correlations = pd.concat([correlations, newCorrLine], ignore_index = True)
+            
+        return(correlations)
+    
+    def __calculate_all_spearman_correlations_per_cluster(self, data):
+        
+        dataGroundtruth = self.data["Groundtruth"].copy()
+        correlationsPerCluster = {}
+        for cluster in dataGroundtruth['cluster_id'].unique():
+            data = data[data["cluster_id"] == cluster]
+
             data_subset = data.loc[:,['sample_id','ab_id', 'ab_count_normalized']]
             d_pivot=data_subset.pivot(index = "sample_id", columns='ab_id', values='ab_count_normalized')
             columns = d_pivot.columns.tolist()
@@ -369,11 +400,13 @@ class NormalizedDataHandler:
 
                 newCorrLine = pd.DataFrame.from_dict({'index': [newIndex], 'SPvalues': [SPvalues], 'Pvalues': [Pvalues], 'AB1': [col_a], 'AB2': [col_b]}, orient='columns')
                 correlations = pd.concat([correlations, newCorrLine], ignore_index = True)
-            return(correlations)
+                
+            correlationsPerCluster[cluster] = correlations
+        return(correlationsPerCluster)
 
-    def save_all_correlations(self, data, key):
+    def save_all_correlations(self, data, key, cluster):
         for row in data.itertuples():
-            self.abCorr.write(key + "\t" + row.AB1 + "\t" + row.AB2 + "\t" + str(round(row.SPvalues, 4)) + "\t" + str(round(row.SPvalues_norm, 4)) + "\n")
+            self.abCorr.write(cluster + "\t" + key + "\t" + row.AB1 + "\t" + row.AB2 + "\t" + str(round(row.SPvalues, 4)) + "\t" + str(round(row.SPvalues_norm, 4)) + "\n")
 
     def ab_spearman_correlation_graph(self, filter = ""):
         plt.figure(figsize=(16,10))
@@ -385,7 +418,7 @@ class NormalizedDataHandler:
             #speacial line for a data set where phospho proteins were excluded due to expected correlations
             if(filter != ""):
                 data = data[data['ab_type'] == filter]
-            spearmanValues = self.__calculate_all_spearman_correlations(data)
+            spearmanValues = self.__calculate_all_spearman_correlations(data.copy())
             sp_mean = np.mean(spearmanValues.SPvalues)
             p_mean = np.mean(spearmanValues.Pvalues)
 
@@ -394,39 +427,58 @@ class NormalizedDataHandler:
             lengend_labels.append(key)
 
         plt.legend(labels=lengend_labels)
-        plt.savefig(self.folder_path +  "SpearmanCorrelations/spearman_correlations_" + filter + ".png", dpi=199)
+        plt.savefig(self.folder_path +  "SpearmanCorrelations/spearman_correlations_global_" + filter + ".png", dpi=199)
         plt.close()
+        
+    def calculate_all_correlations(self):
+        
+        for key in self.data:
+            dataAllClusters = self.data[key].copy()
+            column_names = ["cluster","index", "SPvalues", "Pvalues", "AB1", "AB2"]
+            correlations = pd.DataFrame(columns = column_names)
+            for cluster in dataAllClusters['cluster_id'].unique():
+                data = dataAllClusters[dataAllClusters["cluster_id"] == cluster]
+                correlationsTmp = self.__calculate_all_spearman_correlations(data.copy())
+                correlationsTmp["cluster"] = cluster
+                correlations = pd.concat([correlations, correlationsTmp], ignore_index=True)
 
+            self.correlations[key] = correlations
+            
     def ab_correlation_evaluation(self):
 
         #build a dataFrame that calculates all correlations between proteins for grondTruth
-        groundTruthCorrelations = self.__calculate_all_spearman_correlations(self.groundtruth.copy())
+        groundTruthCorrelations = self.correlations["Groundtruth"]
         
         normRMSDData = {}
         #for every norm method
         for key in self.data:
             if("Groundtruth" in key):
                 continue
+            #get cluster specific correlations
+            dataAllClusters = self.data[key].copy()
+            for cluster in dataAllClusters['cluster_id'].unique():
 
-            data = self.data[key].copy()
-            #calculate same dataFrame and add GroundTruth to it
-            normCorrelations = self.__calculate_all_spearman_correlations(data)
-            normCorrelations.columns = ['index','SPvalues_norm', 'Pvalues_norm', 'AB1_norm', 'AB2_norm']
+                #calculate same dataFrame and add GroundTruth to it
+                normCorrelations = self.correlations[key]
+                normCorrelations = normCorrelations[normCorrelations["cluster"] == cluster]
+                normCorrelations.columns = ["cluster", "index","SPvalues_norm", "Pvalues_norm", "AB1_norm", "AB2_norm"]
+                
+                groundTruthCorrelationsTmp = groundTruthCorrelations[groundTruthCorrelations["cluster"] == cluster]
+                
+                #dropping nan values, important for e.g. subsampling
+                groundTruthCorrelationsTmp.dropna(subset = ["SPvalues"], inplace=True)
+                normCorrelations.dropna(subset = ["SPvalues_norm"], inplace=True)
 
-            #dropping nan values, important for e.g. subsampling
-            groundTruthCorrelations.dropna(subset = ["SPvalues"], inplace=True)
-            normCorrelations.dropna(subset = ["SPvalues_norm"], inplace=True)
+                result = pd.merge(groundTruthCorrelationsTmp, normCorrelations, how="inner", on = "index")
 
-            result = pd.merge(groundTruthCorrelations, normCorrelations, how="inner", on = "index")
+                #calculate the RMSD and safe it to RMSD matrix
+                mse = sklearn.metrics.mean_squared_error(result.SPvalues, result.SPvalues_norm)
+                rmsd = math.sqrt(mse)
+                normRMSDData[key] = rmsd
+                self.rmsd_sp_results.write(cluster + "\t" + key + "\t"+ str(round(rmsd,4)) + "\n")
 
-            #calculate the RMSD and safe it to RMSD matrix
-            mse = sklearn.metrics.mean_squared_error(result.SPvalues, result.SPvalues_norm)
-            rmsd = math.sqrt(mse)
-            normRMSDData[key] = rmsd
-            self.rmsd_sp_results.write(key + "\t"+ str(round(rmsd,4)) + "\n")
-
-            #wite all correlations to file for AB pairs
-            self.save_all_correlations(result, key)
+                #wite all correlations to file for AB pairs
+                self.save_all_correlations(result, key, cluster)
 
         #draw barplot of all RMSDs
         values = normRMSDData.values()
@@ -507,120 +559,58 @@ class NormalizedDataHandler:
         plt.savefig(self.folder_path + "Overview/ABCountRMSD.png", dpi=199)
         plt.close()
 
-    def validate_correlations(self, proteinCorrelations):
+    def validate_correlations(self, corrCutoff = 0.5, stepSize = 0.05):
         
-        #for the proteinCorrelations calcualte the spearman correlation for groundtruth and norm
-        indices = []
-        columnNames = ["Groundtruth"]
-        wantedVarProteinList = []
-        for corr in proteinCorrelations:
-            prot1 = corr.prot1
-            prot2 = corr.prot2
-            wantedVarProteinList.append(prot1)
-            wantedVarProteinList.append(prot2)
-            indices.append(prot1 + '_' + prot2)
+        #get list of all indeces (AB1_AB2) of TP correlations
+        truePosCorrelations = []
+        column_names = ["cluster", "norm", "minCorr", "TP", "TN", "FP", "FN"]
+        correlationRocResults = pd.DataFrame(columns = column_names)
+        groundTruthCorrelations = self.correlations["Groundtruth"].copy()
+        
+        groundtruthData = self.data["Groundtruth"].copy()
+        clusters = groundtruthData['cluster_id'].unique()
+        
+        for cluster in clusters:
+            groundTruthTmp = groundTruthCorrelations[groundTruthCorrelations["cluster"] == cluster]
+            for index, row in groundTruthTmp.iterrows():
+                if(row["SPvalues"] > corrCutoff):
+                    truePosCorrelations.append(row["index"])
+                    
+        #for all norm methods        
         for key in self.data:
             if("Groundtruth" in key):
                 continue
-            columnNames.append(key)
-        correlations = pd.DataFrame(columns = columnNames, index  = indices)
+            
+            #for all clusters
+            for cluster in clusters:
+                normData = self.correlations[key].copy()
+                normData = normData[normData["cluster"] == cluster]
+                
+                cutOffTmp = 1.0
+                while 0.0 <= cutOffTmp:
+                    
+                    #get correlastions > threshold
+                    detectedCorrelations = []
+                    for index, row in normData.iterrows():
+                        if(row["SPvalues"] > cutOffTmp):
+                            detectedCorrelations.append(row["index"])
+                           
+                    #count number of TP,TN,FP,FN indices and add to result
+                    tp = sum(corr in truePosCorrelations for corr in detectedCorrelations)
+                    fp = len(detectedCorrelations) - tp
+                    
+                    tn = len(normData.index) - len(truePosCorrelations) - fp
+                    fn = len(normData.index) - tn - len(detectedCorrelations)
+                            
+                    data = {"cluster": [cluster],"norm": [key], "minCorr": [cutOffTmp],
+                            "TP":[tp], "TN":[tn], "FP":[fp], "FN":[fn]}
+                    resultTmp = pd.DataFrame(data)
+                    correlationRocResults = pd.concat([correlationRocResults, resultTmp], ignore_index=True)
 
-        for corr in proteinCorrelations:
-            prot1 = corr.prot1
-            prot2 = corr.prot2
-            #groundtruth
-            dataTruth = self.groundtruth.copy()
-            dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
-            spvalue = stats.spearmanr(dataTruth.loc[dataTruth.ab_id == prot1, ["ab_count_normalized"]], dataTruth.loc[dataTruth.ab_id == prot2, ["ab_count_normalized"]]).correlation
-            correlations.loc[prot1 + '_' + prot2, "Groundtruth"] = float(spvalue)
+                    cutOffTmp = cutOffTmp - stepSize
+                    self.corrDetection.write(cluster + "\t" + key + "\t"+ str(round(cutOffTmp, 2))+ "\t" + str(tp) + "\t" + str(tn) + "\t" + str(fp) + "\t" + str(fn) + "\n")
 
-            for key in self.data:
-                if("Groundtruth" in key):
-                    continue
-                data = self.data[key].copy()
-                data = data[['sample_id', 'ab_id', 'ab_count_normalized']]
-                spvalue = stats.spearmanr(data.loc[data.ab_id == prot1, ["ab_count_normalized"]], data.loc[data.ab_id == prot2, ["ab_count_normalized"]]).correlation
-                correlations.loc[prot1 + '_' + prot2, key] = float(spvalue)
-
-        #correlations.astype(np.float64)
-        cols = correlations.columns.values.tolist()
-        correlations[cols] = correlations[cols].apply(pd.to_numeric, errors='coerce', axis=1)
-        correlations.round(2)
-        wantedCorrelations = correlations.copy()
-
-        #ax= plt.subplot()
-        #sns.heatmap(correlations, annot=True, annot_kws={"size": 5}, cmap="viridis", vmin = 0, vmax = 1) # font size
-        #ax.set_ylabel('AB Correlations', fontsize = 10)
-        #ax.set_title('AB Correlations', fontsize = 10)
-        #ax.vlines([1], *ax.get_ylim(), linewidth = 2, color = "red")
-        #plt.xticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
-        #plt.yticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
-        #plt.legend( fontsize='8', title_fontsize = '10') # for legend text
-        #plt.tight_layout()
-        #plt.savefig(self.folder_path + "Overview/WantedCorrelationHeatmap.png", dpi=199)
-        #plt.close()
-
-        #UNWANTED CORRELATIONS
-        #for the proteinCorrelations calcualte the spearman correlation for groundtruth and norm
-        unwantedProteins = self.groundtruth["ab_id"].unique()
-        unwantedProteinList = [x for x in unwantedProteins if x not in wantedVarProteinList]
-
-        negProteinCorrelations = []
-        for prot1, prot2 in itertools.combinations(unwantedProteinList, 2):
-            cor = (prot1, prot2)
-            negProteinCorrelations.append(cor)
-
-        sampleNumCorrelations = min(50, len(negProteinCorrelations))
-        negProteinCorrelations = random.sample(negProteinCorrelations, sampleNumCorrelations)
-        indices = []
-        columnNames = ["Groundtruth"]
-        for corr in negProteinCorrelations:
-            prot1 = corr[0]
-            prot2 = corr[1]
-            indices.append(prot1 + '_' + prot2)
-        for key in self.data:
-            if("Groundtruth" in key):
-                continue
-            columnNames.append(key)
-        correlations = pd.DataFrame(columns = columnNames, index  = indices)
-
-        for corr in negProteinCorrelations:
-            prot1 = corr[0]
-            prot2 = corr[1]
-            #groundtruth
-            dataTruth = self.groundtruth.copy()
-            dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
-            spvalue = stats.spearmanr(dataTruth.loc[dataTruth.ab_id == prot1, ["ab_count_normalized"]], dataTruth.loc[dataTruth.ab_id == prot2, ["ab_count_normalized"]]).correlation
-            correlations.loc[prot1 + '_' + prot2, "Groundtruth"] = float(spvalue)
-
-            for key in self.data:
-                if("Groundtruth" in key):
-                    continue
-                data = self.data[key].copy()
-                data = data[['sample_id', 'ab_id', 'ab_count_normalized']]
-                spvalue = stats.spearmanr(data.loc[data.ab_id == prot1, ["ab_count_normalized"]], data.loc[data.ab_id == prot2, ["ab_count_normalized"]]).correlation
-                correlations.loc[prot1 + '_' + prot2, key] = float(spvalue)
-
-        #correlations.astype(np.float64)
-        cols = correlations.columns.values.tolist()
-        correlations[cols] = correlations[cols].apply(pd.to_numeric, errors='coerce', axis=1)
-        correlations.round(2)
-
-        correlations = pd.concat([wantedCorrelations, correlations])
-
-        ax= plt.subplot()
-        sns.heatmap(correlations, annot=False, annot_kws={"size": 5}, cmap="bwr", vmin = -1, vmax = 1, cbar_kws={"shrink": .70}) # font size
-        # labels, title and ticks
-        ax.set_ylabel('AB Correlations', fontsize = 10)
-        ax.set_title('AB Correlations', fontsize = 10)
-        ax.vlines([1], *ax.get_ylim(), linewidth = 2, color = "red")
-        ax.hlines([len(wantedCorrelations)], *ax.get_xlim(), linewidth = 2, color = "red")
-        plt.xticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 8)
-        plt.yticks(rotation = 45, ha='right', rotation_mode='anchor', fontsize = 6)
-        plt.tight_layout()
-        plt.savefig(self.folder_path + "Overview/UnwantedCorrelationHeatmap.png", dpi=199)
-        plt.close()
-
+        print(correlationRocResults)
     #mean values are in the end divided by the smallest AB value
     def __get_AB_mean_dataFrame(self, data):
 
@@ -758,19 +748,28 @@ class NormalizedDataHandler:
 
         #for every norm method
         for key in self.data:
+
             if("Groundtruth" in key):
                 continue
-            data = self.data[key].copy()
+            
+            dataAllClusters = self.data[key].copy()
+            for cluster in dataAllClusters['cluster_id'].unique():
+                data = dataAllClusters[dataAllClusters["cluster_id"] == cluster]
+                
+                groundtruth = self.groundtruth.copy()
+                groundtruth = groundtruth[groundtruth["cluster_id"] == cluster]
+                overlapDist = calculate_knn_overlap(data, groundtruth)
+                overlapDist['NORM_METHOD'] = str(key)
+                overlapDist['CLUSTER_ID'] = str(cluster)
 
-            overlapDist = calculate_knn_overlap(data.copy(), self.groundtruth.copy())
-            overlapDist['NORM_METHOD'] = str(key)
-
-            if(result is None):
-                result = overlapDist
-            else:
-                result = pd.concat([result, overlapDist], ignore_index=True)
+                if(result is None):
+                    result = overlapDist
+                else:
+                    result = pd.concat([result, overlapDist], ignore_index=True)
 
         #write final results
+        print("KNN GRAPH")
+        print(result)
         result.to_csv(self.knnOverlapFilePath, sep='\t', index=False)
 
 

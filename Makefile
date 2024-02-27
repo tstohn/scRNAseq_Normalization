@@ -61,4 +61,9 @@ run_cluster_1:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ../Simulations/increaseNumProteins_1.ini --d 2 -k --t 10
 
 run_5:
-	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/protein_number.ini --d 20 -k --t 30
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/CORR_1.ini --d 5 -k --t 5
+
+run_increasedCorr:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/increasingCorrelations.ini --d 1 -k --t 5
+run_definedCorr:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/definedCorrelations.ini --d 1 -k --t 5

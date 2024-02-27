@@ -46,15 +46,24 @@ def replace_negatives(x):
 #introduce a technical variance matrix: AB amount differences, annealing differences
 
 def convert_neg_binom_params(mu, size):
-    p = size/(size+mu)
-    n = mu*p/(1.0 - p)
+    #n = number of successes/ p = probability
+    #p = size/(size+mu) - same as formular below
+    # formular for probability here: https://stat.ethz.ch/R-manual/R-devel/library/stats/html/NegBinomial.html    
+    #in nbinom (python) n is number of successes, in R this is already size, n is the number of observations
+    
+    n = size
+    p = 1 / (1 + (mu / size))
+
     return n, p
     
 class ProteinCountDistribution():
 
     def __convert_params(self, mu, size):
-        p = size/(size+mu)
-        n = mu*p/(1.0 - p)
+        #p = size/(size+mu)
+        
+        n = size
+        p = 1 / (1 + (mu / size))
+    
         return n, p
 
     def __init__(self, number, mu, size):
@@ -73,6 +82,9 @@ class Parameters():
     #antibody count is not considered for now: in sc IDseq constant AB concentration was used for all targets (0.1myg/ml over night)
     #biological variation matrix
     #technical variation matrix
+    
+    #store its own file name (needed to write benchmarkIniFile)
+    filePath = ""
     
     #data types to hold proteinlevels/dist/correlations which are inserted in dictionaries mapping them to individual proteins later on
     ProteinMeanDist = namedtuple('ProteinLevel', ['mu', 'size', 'number'])
@@ -93,7 +105,7 @@ class Parameters():
     abDuplicateDisturbance=0
     pcrCycles=1
     pcrCapture=1
-    libSize=[1,1]
+    libSize=[1.0,0.0] #default lib-size factor is 1.0 introducing NO lib-size effect
     batchFactors=None
     noise=0.0
     noiseExtrinsic=0.0
@@ -320,8 +332,13 @@ class Parameters():
             
     def __init__(self, paramter_file):
         self.__parseParameters(paramter_file)
+        self.filePath = paramter_file
 
 class SingleCellSimulation():
+
+    #certain variables drawn from distributions (correlations) have to be stored to be accessed in benchmark
+    """ BenchmarkIniFiles """
+    benchmarkIniPath = ""     
 
     """ PARAMETERS """
     parameters = None
@@ -337,7 +354,49 @@ class SingleCellSimulation():
 
     def __init__(self, parameters):
         self.parameters = parameters
+        indexSlash = self.parameters.filePath.rfind("/")
+        self.benchmarkIniPath = self.parameters.filePath[:indexSlash + 1] + "benchmarkIniFile" + self.parameters.filePath[indexSlash + 1:]
 
+    #e.g., to write the proteins involved in clusters to benchmarkIniFile
+    def __write_cluster_proteins(self, file_path, data):
+        """
+        Write a list to a file.
+        :param file_path: The path to the file.
+        :param data: The list of lists: protein list per cluster
+        """
+        try:
+            # Open the file in write mode
+            with open(file_path, 'w') as file:
+                # Write each element of the list to the file
+                for idx in range(self.parameters.numberOfClusters-1):
+                    file.write(str(idx) + ':\t')
+                    for protein in data[idx]:
+                        file.write(str(protein) + '\t')
+                    file.write('\n')
+            print("Data written to", file_path)
+        except Exception as e:
+            print("Error writing to file:", str(e))
+            
+    #e.g., to write the proteinCorrelations to benchmarkIniFile (witha  cutoff stated in main)
+    def __write_correlated_proteins(self, file_path, covariancematrix):
+        """
+        Write a list to a file.
+        :param file_path: The path to the file.
+        :param data: The list to write to the file.
+        """
+        try:
+            # Open the file in write mode
+            with open(file_path, 'w') as file:
+                # Write each element of the list to the file
+                print(file_path)
+                for item in data:
+                    print(item)
+
+                    file.write(str(item) + '\n')
+            print("Data written to", file_path)
+        except Exception as e:
+            print("Error writing to file:", str(e))
+            
     """ we see a strong dependance of size on mu for single-cell protein distributions, therefore calualte size depending on mu"""
     def __calculate_size_from_mu(self, mu):
         size_formula_with_mu_insertion = self.parameters.size.replace('MU', str(mu))
@@ -462,7 +521,7 @@ class SingleCellSimulation():
         perturbFrame = pd.DataFrame()
         perturbFrame["sample_id"] = data["sample_id"].unique()
         #sample lbisize factors from normal dist: 1.value = mean, 2.= std
-        perturbFrame["factor"] = np.random.lognormal(self.parameters.libSize[0],self.parameters.libSize[1], len(perturbFrame))
+        perturbFrame["factor"] = np.random.normal(self.parameters.libSize[0],self.parameters.libSize[1], len(perturbFrame))
 
         perturbDict = dict(zip(perturbFrame["sample_id"], perturbFrame["factor"]))
         data["ab_count"] = data["ab_count"] * data["sample_id"].map(perturbDict)
@@ -535,9 +594,6 @@ class SingleCellSimulation():
         if(setIdx is None):
             mean = self.parameters.proteinCorrelationMean * scalingFactor
             std = self.parameters.proteinCorrelationStd
-            print(self.parameters.proteinCorrelationStd)
-            print(str(mean))
-
         else:
             mean = self.parameters.proteinCorrelationDists[setIdx].mean * scalingFactor
             std = self.parameters.proteinCorrelationDists[setIdx].std
@@ -623,13 +679,9 @@ class SingleCellSimulation():
                     covMat[j][i] = corr
                     
         #check if matrix is positive semi definite
-        print("___BEORE___\n")
-        print(np.round(covMat,2))
         minEigenVal = min(np.linalg.eigvals(covMat))
         if(minEigenVal <0):
             covMat = nearcorr(np.array(covMat), max_iterations=10000)
-        print("___AFTER___\n")
-        print(np.round(covMat,2))
 
         return(covMat)
         
@@ -669,9 +721,6 @@ class SingleCellSimulation():
         return(distributions)
     
     def __sampleCellTimesProteinMatrix(self, percentage, dist, cov, clusterIdx):
-
-        print(np.round(cov,2))
-        print(dist)
         
         copula_params = {}
         copula_params['correlation'] = cov
@@ -685,14 +734,23 @@ class SingleCellSimulation():
 
         #bring copulaResult in the right format
         copulaResult = copulaResult.reset_index().rename(columns={ 'index' : 'sample_id'})
+        infNum = np.isinf(copulaResult).values.sum()
+        if(infNum > 0):
+            print("simulated data contains " + infNum + "INF values: check simulations! (e.g., wrong correlation parameters\n)")
+            exit()
+            
         copulaResult = copulaResult.melt(id_vars = ["sample_id"], var_name="ab_id", value_name="ab_count")
         copulaResult.insert(0, 'batch_id', 'batch')
         copulaResult.insert(0, 'ab_type', 'any_ab')
 
+        #insert treatment/cluster column +
+        #add cluster prefix to sample_id (since we have the same idx for all clusters)
         if(clusterIdx == 0):
             copulaResult.insert(0, 'cluster_id', 'control')
+            copulaResult['sample_id'] = 'control_' + copulaResult['sample_id'].astype(str)
         else:
             copulaResult.insert(0, 'cluster_id', ('cluster_' + str(clusterIdx)))
+            copulaResult['sample_id'] = 'cluster_' + str(clusterIdx) + "_" + copulaResult['sample_id'].astype(str)
 
         return(copulaResult)
     
@@ -702,8 +760,10 @@ class SingleCellSimulation():
         
         betaFactors = self.parameters.betaFactors
         betaFactors.insert(0, 1.0)
+        betaParams = [self.parameters.betaParameter * x for x in betaFactors]
+        assert(len(betaParams) == self.parameters.numberOfClusters)
         for idx in range(self.parameters.numberOfClusters):
-            covariancematrix.append(self.__vineBeta(self.parameters.ProteinNumber, betaFactors[idx]))
+            covariancematrix.append(self.__vineBeta(self.parameters.ProteinNumber, betaParams[idx]))
 
         return(covariancematrix)
     
@@ -756,7 +816,7 @@ class SingleCellSimulation():
             for idx in range(self.parameters.numberOfClusters-1):
                 subset = random.sample(range(self.parameters.ProteinNumber), self.parameters.numberClusterSpecificProteins[idx])
                 clusterSpecificProteinIdxs.append(subset)
-                
+                              
         #CLUSTER SPECIFIC PROTEIN-DISTRIBUTION-PARAMETRIZATION (scaled for proteins)
         for idx in range(self.parameters.numberOfClusters):
             distributions.append(self.__generateProteinDistributions(clusterSpecificProteinIdxs, idx))
@@ -971,7 +1031,7 @@ class SingleCellSimulation():
         #for every cluster: scale protein distributions; scale correlations; sample using gaussian copula
         # (protein counts scaled/ correlations scaled/ and then sampled from theirs dists by copula)
         self.groundTruthData = self.__generateGroundTruthWithCopula()
-
+            
         #not interesting at this point (initialy thought of AB duplicates for normalization)
         if(self.parameters.abDuplicates > 1):
             self.groundTruthData = self.__insert_ab_duplicates(self.groundTruthData)
@@ -982,6 +1042,9 @@ class SingleCellSimulation():
             perturbedData = self.__insert_batch_effect(perturbedData)
             self.__add_batch_effect_to_ground_truth(perturbedData)
             
+        #add random noise to simulations
+        tmp_simulatedData = self.__perturb(perturbedData)
+        
         #scale counts for library size effects
         if(not (self.parameters.libSize[0]==1 and self.parameters.libSize[1]==1)):
             perturbedData = self.__insert_libsize_effect(perturbedData)
@@ -993,9 +1056,6 @@ class SingleCellSimulation():
         #simulate PCR amplification and sequencing
         #sampling with replacement to simulate PCR amplification as well as missing out on reads during washing/ sequencing
         #tmp_simulatedData = self.__simulate_sequencing_binding_2(perturbedData)
-        
-        #add random noise to simulations
-        tmp_simulatedData = self.__perturb(perturbedData)
 
         #remove negative counts from data, and substitute with zero
         self.simulatedData = tmp_simulatedData
@@ -1015,4 +1075,3 @@ class SingleCellSimulation():
         self.simulatedData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_SIMULATED.tsv", sep='\t', index = False)
         self.groundTruthData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_GROUNDTRUTH.tsv", sep='\t', index = False)
         printToTerminalOnce("\tData saved\n")
-

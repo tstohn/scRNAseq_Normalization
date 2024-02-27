@@ -254,7 +254,7 @@ class Benchmark():
     #every run of a simulation -> normalizaitons -> benchmark results in a folder in bin/BENCHMARK
     #all those folers are beeing stored in a foler called SIMULATIONS_dateTime to keep better track
     def moveIntoOneFolder(self, newSimulationDir, dublicateNum):
-        simulationName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))
+        simulationName = str(os.path.basename(removesuffix(self.parameters.iniFile, '.ini')))
         if(os.path.exists("./bin/BENCHMARKED_DATASETS/" + simulationName)):
             if(os.path.exists(newSimulationDir + "/" + simulationName)):
                 shutil.rmtree(newSimulationDir + "/" + simulationName)
@@ -292,7 +292,7 @@ class Benchmark():
             os.mkdir(resultDir)
 
         #Spearman RMSD data
-        fileNameList = ["spearmanRMSD.tsv", "treatmentAccuracy.tsv", "spearmanCorrelations.tsv", "ABSpearmanCoeff.tsv", "knnOverlap.tsv"]
+        fileNameList = ["spearmanRMSD.tsv", "treatmentAccuracy.tsv", "spearmanCorrelations.tsv", "ABSpearmanCoeff.tsv", "knnOverlap.tsv", "PercentageCorrelationDetection.tsv"]
         for fileName in fileNameList:
             self.combine_files(newSimulationDir, resultDir, fileName, dublicationNum)
 

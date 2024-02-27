@@ -7,8 +7,7 @@ def parse_args():
     parser.add_argument('--stdout', help='write unimportant messages to a file', default="",
                         type=str)
     parser.add_argument('dir', metavar='DIR', type=str)
-    parser.add_argument('--t', help='threads',
-                        type=int, default=-1)
+    parser.add_argument('--t', help='threads', type=int, default=-1)
 
     args = parser.parse_args()
     return(args)

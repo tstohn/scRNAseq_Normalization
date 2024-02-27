@@ -35,12 +35,15 @@ def parse_args():
     #but allow sklearn for treatment detection to spawn threads as it wants
     parser.add_argument('--t', help='threads',
                         type=int, default=-1)
-    parser.add_argument('dir', metavar='DIR', type=str)
+    #correlation detection arguments
+    parser.add_argument('--c', help='corrCutoff',type=float, default=0.5)
 
+    parser.add_argument('dir', metavar='DIR', type=str)
+    
     args = parser.parse_args()
     return(args)
 
-def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOverlap, iniFile, threadsSklearn):
+def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOverlap, iniFile, threadsSklearn, corrCutoff):
     #initialization
     from NormalizedDataHandler import NormalizedDataHandler
     import Simulation
@@ -67,7 +70,9 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOve
     '''
     if(groundtruth):
         params = Simulation.Parameters(iniFile)
+        benchmark.calculate_all_correlations()
 
+        #Spearman correlation PLOTS are global OVER ALL CLUSTERS/ data in table is cluster specific
         try:
             benchmark.ab_spearman_correlation(groundtruth) # make RMSD of correlation differences => barplot
         except Exception as e: 
@@ -81,22 +86,27 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOve
             print(e)
             printToTerminalOnce("\n ERROR: RMSD between ABcount to min ABcount failed\n")
 
-        #calculate detected correlations of proteins - check we have wanted and not unwanted corr
-        #make heatmap of all wanted, and of 50 randomly chosen unwanted variations
+        #calculate detected correlations of proteins:
+        #set a threshold (for now 0.5 hard coded), define corrs as TP/ FP
+        #make a ROC courve by slowly going down from 1 to zero and saying all right ones are TP (take square root)
         try:
-            benchmark.validate_correlations(params.proteinCorrelations)
+            corrCutoff = 0.5
+            stepSize = 0.05
+            benchmark.validate_correlations(corrCutoff, stepSize)
         except Exception as e: 
             print(e)
             printToTerminalOnce("\n ERROR: Detection of wanted Correlation failed\n")
-
-        if(params.diffExProteins != None):
+        
+        #calculate detected cluster effect figures:
+        #we miss the exact proteins for now since we replace manual pecific protiens in ini with random number of proteins
+        '''if(params.numberOfClusters > 1):
             try:
-                benchmark.validate_treatment_effect(params.diffExProteins, params.treatmentVector)
+                benchmark.validate_treatment_effect(params.diffExProteins, params.abundanceFactors)
             except Exception as e: 
                 print(e)
                 printToTerminalOnce("\n ERROR: Treatment Effect validation failed\n")
+        '''
 
-        #calculate detected treatment effect - check we have wanted treatment effect and not unwanted
         if(params.batchFactors != None):
             #calculate removed batch effect
             try:
@@ -155,7 +165,7 @@ def main():
 
     #make classifications
     for dataset in datasets:
-        make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.knn, args.iniFile, threadsSklearn)
+        make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.knn, args.iniFile, threadsSklearn, args.c)
 
     if(args.stdout != ""):
         outfile.close()

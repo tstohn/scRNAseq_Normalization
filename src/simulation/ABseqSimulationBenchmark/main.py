@@ -42,7 +42,6 @@ def parse_args():
     parser.add_argument('--d', help='duplicates',
                         type=int, default=5)
 
-
     args = parser.parse_args()
     
     return(args)
@@ -85,6 +84,7 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
     while line:
         if( (not line.startswith("#")) and ("INIRANGE" in line) ):
             info = re.match(("(.+?)INIRANGE=(.*)"), line)
+
             variableParameter = str(info[1]) 
             infoArray = str(info[2]).split(";")
             #if the range itself has several values (so far only 2) parse them seperately
@@ -123,6 +123,10 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
     count = 0
     fileBenchmarksToKeep.append(0)
 
+    #if we have no INIRANGE: write at least the file itself by setting end to 2
+    #to initiate a single iteration
+    if(start == 1 and end == 1 and factor == 1):
+        end = 2
     for i in np.arange(start, end, factor):
         j = 0
         if value2Set:
@@ -135,10 +139,10 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
         file = open(iniFile, "r")
         line = file.readline()
         while line:
-            if(str.startswith(line, variableParameter+"INIRANGE")):
+            if(str.startswith(line, variableParameter+"INIRANGE") and (variableParameter != "")):
                 line = file.readline()
                 continue
-            elif(str.startswith(line, variableParameter)):
+            elif(str.startswith(line, variableParameter) and (variableParameter != "")):
                 #write new variable line
 
                 #LIBRARY SIZE
@@ -183,6 +187,12 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                 if(variableParameter=="correlationFactors"):
                     newLine = line.replace("X", str(i))
                     newFile.write(newLine)
+                if(variableParameter=="betaParameter"):
+                    newLine = line.replace("X", str(i))
+                    newFile.write(newLine)  
+                if(variableParameter=="betaFactors"):
+                    newLine = line.replace("X", str(i))
+                    newFile.write(newLine)  
                 #increasing cellPercentages (have in mind, all NON-X cell percentages get evenly scaled to sum to 100)
                 if(variableParameter=="cellPercentages"):
                     #we need to scale other cell population percentages so that they sum to 100
