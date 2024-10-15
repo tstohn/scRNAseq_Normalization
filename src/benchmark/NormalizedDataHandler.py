@@ -18,6 +18,7 @@ from ctypes import *
 import sys
 sys.path.insert(1, 'src/methods/KnnSimilarity')
 from KnnSimilarity import calculate_knn_overlap
+from collections import defaultdict
 
 import sklearn
 from sklearn.datasets import make_classification
@@ -26,7 +27,7 @@ from sklearn.tree import *
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.manifold import TSNE
 from sklearn.metrics import confusion_matrix
-
+from scipy.stats import zscore
 import graphviz
 import seaborn as sns
 
@@ -121,9 +122,12 @@ class NormalizedDataHandler:
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/SpearmanCorrelations")
         if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name + "/Results"):
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name + "/Results")
-        #result TXT files
-        self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/treatmentAccuracy.tsv", "w+")
-        self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
+        
+        #result files
+        
+        #files origionally used for treatment classification/ now replaced with knn for clusterability
+        #self.results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/treatmentAccuracy.tsv", "w+")
+        #self.results.write("NORMALIZATION_METHOD" + "\t" + "CLASSIFICATION_METHOD" + "\t" + "ACCURACY_MEAN" + "\t" + "ACCURACY_SD" + "\n")
 
         self.sp_results = open("bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/spearmanCorrelations.tsv", "w+")
         self.sp_results.write("NORMALIZATION_METHOD" + "\t" + "SPEARMAN_CORRELATION_MEAN" + "\t" + "SPEARMAN_PVALUE_MEAN" + "\n")
@@ -139,6 +143,7 @@ class NormalizedDataHandler:
 
         #header is written when stored
         self.knnOverlapFilePath = "bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/knnOverlap.tsv"
+        self.clusteringFilePath = "bin/BENCHMARKED_DATASETS/"+folder_name+"/Results/Clustering.tsv"
 
         self.dataset_name = folder_name
         self.folder_path = ("bin/BENCHMARKED_DATASETS/"+folder_name+"/")
@@ -194,7 +199,8 @@ class NormalizedDataHandler:
         return([np.mean(scores),np.std(scores)])
 
     #private classification metods running on SINGLE method
-    def __knn_classification(self, data_name, method_string):
+    #with inner and outer cross validation to get best parameters
+    def __knn_optimized_classification(self, data_name, method_string):
         model = KNeighborsClassifier(algorithm='auto')
         feature_array=self.class_data.get(data_name, {}).get('X')
         params = {"n_neighbors": range(1, 30),
@@ -203,6 +209,45 @@ class NormalizedDataHandler:
                   "weights": ["uniform", "distance"],
                   "metric": ["minkowski", "chebyshev"]}
         return(self.__classify(data_name, model, params, method_string))
+    
+    #knn classification with fixed K and several data-splits
+    def __knn_simple_classification(self, key,  knnOverlap, knnMetric, 
+                                    test_indices, train_indices,
+                                    zscoreScaling = True):
+
+        dataTmp = self.data[key]
+        dataTmp = dataTmp[["cluster_id", "sample_id", "ab_id", "ab_count_normalized"]]
+
+        # Pivot the DataFrame to a wider format
+        data = dataTmp.pivot(index='sample_id', columns='ab_id', values='ab_count_normalized').reset_index()
+        data = data.sort_index()
+                
+        columns_to_normalize = [col for col in data.columns if col.startswith('AB')]
+        if(zscoreScaling):
+            data[columns_to_normalize] = data[columns_to_normalize].apply(zscore)
+
+        classLabels = dataTmp[['sample_id', 'cluster_id']].drop_duplicates()
+        data = data.merge(classLabels, on='sample_id')
+
+        X = data.drop(['sample_id', 'cluster_id'], axis=1)
+        y = data['cluster_id']
+
+        # Split dataset into train and test sets
+        X_train = X.iloc[train_indices]
+        X_test = X.iloc[test_indices]
+        y_train = y.iloc[train_indices]
+        y_test = y.iloc[test_indices]
+        
+        # Create KNN classifier with fixed parameters
+        knn = KNeighborsClassifier(n_neighbors=knnOverlap, metric=knnMetric)
+        knn.fit(X_train, y_train)
+        
+        # Make predictions on the test set
+        y_pred = knn.predict(X_test)
+        # Calculate accuracy
+        accuracy = sklearn.metrics.accuracy_score(y_test, y_pred)
+
+        return([accuracy, y_test.tolist(), y_pred.tolist()])
 
     def __dt_classification(self, data_name, method_string):
         model = DecisionTreeClassifier(random_state=1)
@@ -306,26 +351,111 @@ class NormalizedDataHandler:
         plt.close()
 
     #public classification metods running on ALL normalization methods
-    def knn_clasification(self):
-        result = pd.DataFrame()
-        for key in self.data:
-            result[key] = self.__knn_classification(key, "KNN")
-        return(result)
+    def knn_clasification(self,  knnOverlap, knnMetric):
+        result = defaultdict(list)
+        y_true = defaultdict(list)
+        y_pred = defaultdict(list)
+        
+        print("KNN CLASIIFICATION GOING ON\n")
+        #get some random indices for train/ test set. To use exactly the same idx for all normalized datasets for classification
+        groundtruthDf = self.data["Groundtruth"]
+        unique_samples = groundtruthDf['sample_id'].unique().tolist()
+        total_samples = len(unique_samples)
+        # Define the number of samples for the test set
+        test_size = 0.2
+        test_samples = round(test_size * total_samples)
+
+        n_iterations = 50
+        # Repeat the process 50 times
+        for i in range(n_iterations):
+            #create a test/ train split
+            random_indices = list(range(total_samples))
+            random.shuffle(random_indices)
+
+            test_indices = random_indices[:test_samples]
+            # The rest of the indices are for the training set
+            train_indices = random_indices[test_samples:]
+
+            for key in self.data:
+                classification = self.__knn_simple_classification(key,  knnOverlap, knnMetric, test_indices, train_indices)
+                result[key].append(classification[0])
+                y_true[key].append(classification[1])
+                y_pred[key].append(classification[2])
+        
+        y_true_list = {key: [item for sublist in value for item in sublist] for key, value in y_true.items()}
+        y_pred_list = {key: [item for sublist in value for item in sublist] for key, value in y_pred.items()}
+
+        return([result, y_true_list, y_pred_list])
 
     def dt_classification(self):
         result = pd.DataFrame()
         for key in self.data:
             result[key] = self.__dt_classification(key, "DecisionTree")
         return(result)
+    
+    def plot_classification_boxplots(self, results):
+        
+        #pivot longer: format is one column per normalization method with all accuracies in rows
+        resultPivotted = pd.melt(results, var_name='Normalization', value_name='Accuracy')
 
-    def run_treatment_classification(self):
-        dtScores = self.dt_classification()
-        knnScores = self.knn_clasification()
+        # Create boxplot
+        plt.figure(figsize=(8, 6))
+        sns.boxplot(data=resultPivotted, x='Normalization', y='Accuracy')
+        plt.title('Boxplot of Values by Key')
+        plt.xlabel('Normalization method')
+        plt.ylabel('Accuracy')        
+        plt.savefig(self.folder_path +  "/Classification/Clusterability.png", dpi=199)
+        plt.close()
+        
+        
+    def sort_classes(self, elem):
+        if elem == 'control':
+            return -1 
+        else:
+            return int(elem.split('_')[-1]) 
 
-        dtScores.sort_index(axis=1, inplace=True)
+    def plot_classification_confusion_matrix(self, y_true, y_pred):
+        
+        #one confusion matrix per normalization method
+        for key in self.data:  
+            
+            #get unique labels, and move control to front
+            #only to give confusion matrix an order
+            labels = set(y_true[key])
+            sorted_labels = sorted(labels, key=self.sort_classes)
+ 
+            cm= confusion_matrix(y_true[key], y_pred[key], sorted_labels)
+            
+            plt.figure(figsize=(5, 5))
+            sns.heatmap(cm, annot = True, linewidths= 0.5, linecolor="red", fmt=".0f")
+
+            plt.xlabel('Predicted labels')
+            plt.ylabel('True labels')
+            plt.title('Confusion Matrix')
+            # Set tick labels
+            plt.xticks(ticks=range(len(sorted_labels)), labels=sorted_labels)
+            plt.yticks(ticks=range(len(sorted_labels)), labels=sorted_labels)
+            # Save the plot
+            plt.savefig(self.folder_path +  "/Classification/ConfusionMatrices/ConfusionKNN" + key + ".png", dpi=199)
+            plt.close()
+        
+    def validate_clusterability(self, knnOverlap, knnMetric):
+        #we return the accuracies per norm method, as well as predicted, true labels for conf matrices
+        knnResults = self.knn_clasification(knnOverlap, knnMetric)
+
+        #accuracies boxplot
+        knnScores = knnResults[0]
+        knnScores = pd.DataFrame(knnScores)
+        
         knnScores.sort_index(axis=1, inplace=True)
+        self.plot_classification_boxplots(knnScores)
+        
+        knnScores["KnnThreshold"] = knnOverlap
+        knnScores["knnMetric"] = knnMetric
+        knnScores.to_csv(self.clusteringFilePath, sep='\t', index=False)
 
-        self.draw_treatment_barplot_for_knn_and_dt(knnScores, dtScores)
+        #confusion matrix
+        self.plot_classification_confusion_matrix(knnResults[1], knnResults[2])
 
     def draw_tsne(self):
         for key in self.data:
@@ -381,7 +511,7 @@ class NormalizedDataHandler:
     
     def __calculate_all_spearman_correlations_per_cluster(self, data):
         
-        dataGroundtruth = self.data["Groundtruth"].copy()
+        dataGroundtruth = self.data["Groundtruth"].copy(deep = True)
         correlationsPerCluster = {}
         for cluster in dataGroundtruth['cluster_id'].unique():
             data = data[data["cluster_id"] == cluster]
@@ -413,12 +543,12 @@ class NormalizedDataHandler:
         lengend_labels = []
 
         for key in self.data:
-            data = self.data[key].copy()
+            data = self.data[key].copy(deep = True)
 
             #speacial line for a data set where phospho proteins were excluded due to expected correlations
             if(filter != ""):
                 data = data[data['ab_type'] == filter]
-            spearmanValues = self.__calculate_all_spearman_correlations(data.copy())
+            spearmanValues = self.__calculate_all_spearman_correlations(data.copy(deep = True))
             sp_mean = np.mean(spearmanValues.SPvalues)
             p_mean = np.mean(spearmanValues.Pvalues)
 
@@ -438,7 +568,7 @@ class NormalizedDataHandler:
             correlations = pd.DataFrame(columns = column_names)
             for cluster in dataAllClusters['cluster_id'].unique():
                 data = dataAllClusters[dataAllClusters["cluster_id"] == cluster]
-                correlationsTmp = self.__calculate_all_spearman_correlations(data.copy())
+                correlationsTmp = self.__calculate_all_spearman_correlations(data.copy(deep = True))
                 correlationsTmp["cluster"] = cluster
                 correlations = pd.concat([correlations, correlationsTmp], ignore_index=True)
 
@@ -455,7 +585,7 @@ class NormalizedDataHandler:
             if("Groundtruth" in key):
                 continue
             #get cluster specific correlations
-            dataAllClusters = self.data[key].copy()
+            dataAllClusters = self.data[key].copy(deep = True)
             for cluster in dataAllClusters['cluster_id'].unique():
 
                 #calculate same dataFrame and add GroundTruth to it
@@ -525,7 +655,7 @@ class NormalizedDataHandler:
     def validate_normalizedData_against_groundTruth(self):
         
         normRMSDData = {}
-        dataTruth = self.groundtruth.copy()
+        dataTruth = self.groundtruth.copy(deep = True)
         dataTruth = dataTruth[['sample_id', 'ab_id', 'ab_count_normalized']]
         dataTruth = self.__calc_fold_changes_between_totalABCounts_and_ABmin(dataTruth)
         dataTruth.rename(columns={'foldChange' :'foldChange_truth'},inplace=True)
@@ -535,7 +665,7 @@ class NormalizedDataHandler:
                 continue
             if("Groundtruth" in key):
                 continue
-            dataNorm = self.data[key].copy()
+            dataNorm = self.data[key].copy(deep = True)
             dataNorm = dataNorm[['sample_id', 'ab_id', 'ab_count_normalized']]
             dataNorm = self.__calc_fold_changes_between_totalABCounts_and_ABmin(dataNorm)
             dataNorm.rename(columns={'foldChange' :'foldChange_norm'},inplace=True)
@@ -562,19 +692,19 @@ class NormalizedDataHandler:
     def validate_correlations(self, corrCutoff = 0.5, stepSize = 0.05):
         
         #get list of all indeces (AB1_AB2) of TP correlations
-        truePosCorrelations = []
         column_names = ["cluster", "norm", "minCorr", "TP", "TN", "FP", "FN"]
         correlationRocResults = pd.DataFrame(columns = column_names)
-        groundTruthCorrelations = self.correlations["Groundtruth"].copy()
+        groundTruthCorrelations = self.correlations["Groundtruth"].copy(deep = True)
         
-        groundtruthData = self.data["Groundtruth"].copy()
+        groundtruthData = self.data["Groundtruth"].copy(deep = True)
         clusters = groundtruthData['cluster_id'].unique()
-        
+        truePosCorrelations = {key: [] for key in clusters}
+
         for cluster in clusters:
             groundTruthTmp = groundTruthCorrelations[groundTruthCorrelations["cluster"] == cluster]
             for index, row in groundTruthTmp.iterrows():
-                if(row["SPvalues"] > corrCutoff):
-                    truePosCorrelations.append(row["index"])
+                if( abs(row["SPvalues"]) > corrCutoff):
+                    truePosCorrelations[cluster].append(row["index"])
                     
         #for all norm methods        
         for key in self.data:
@@ -583,7 +713,7 @@ class NormalizedDataHandler:
             
             #for all clusters
             for cluster in clusters:
-                normData = self.correlations[key].copy()
+                normData = self.correlations[key].copy(deep = True)
                 normData = normData[normData["cluster"] == cluster]
                 
                 cutOffTmp = 1.0
@@ -592,14 +722,14 @@ class NormalizedDataHandler:
                     #get correlastions > threshold
                     detectedCorrelations = []
                     for index, row in normData.iterrows():
-                        if(row["SPvalues"] > cutOffTmp):
+                        if( abs(row["SPvalues"]) > cutOffTmp):
                             detectedCorrelations.append(row["index"])
                            
                     #count number of TP,TN,FP,FN indices and add to result
-                    tp = sum(corr in truePosCorrelations for corr in detectedCorrelations)
+                    tp = sum(corr in truePosCorrelations[cluster] for corr in detectedCorrelations)
                     fp = len(detectedCorrelations) - tp
                     
-                    tn = len(normData.index) - len(truePosCorrelations) - fp
+                    tn = len(normData.index) - len(truePosCorrelations[cluster]) - fp
                     fn = len(normData.index) - tn - len(detectedCorrelations)
                             
                     data = {"cluster": [cluster],"norm": [key], "minCorr": [cutOffTmp],
@@ -610,7 +740,6 @@ class NormalizedDataHandler:
                     cutOffTmp = cutOffTmp - stepSize
                     self.corrDetection.write(cluster + "\t" + key + "\t"+ str(round(cutOffTmp, 2))+ "\t" + str(tp) + "\t" + str(tn) + "\t" + str(fp) + "\t" + str(fn) + "\n")
 
-        print(correlationRocResults)
     #mean values are in the end divided by the smallest AB value
     def __get_AB_mean_dataFrame(self, data):
 
@@ -638,7 +767,7 @@ class NormalizedDataHandler:
             if("Simulation" in key):
                 continue
             batchDifferenceDict = {}
-            data = self.data[key].copy()
+            data = self.data[key].copy(deep = True)
             meanData = self.__get_AB_mean_dataFrame(data)
             batches = meanData.columns.to_list()
             for batch_1, batch_2 in itertools.combinations(batches, 2):
@@ -675,7 +804,7 @@ class NormalizedDataHandler:
 
         return(dict)
 
-    def validate_treatment_effect(self, diffExProteins, diffExFactors):
+    def validate_log2foldchange(self, diffExProteins, diffExFactors):
 
         abIdConditionToFactorMap = self.__parseTreatmentConditionInfluence(diffExProteins, diffExFactors)
         treatmentProts = []
@@ -686,7 +815,7 @@ class NormalizedDataHandler:
         fig, axs = plt.subplots(len(self.data), len(treatmentProts),figsize=(17,12))
         i = 0
         for key in self.data:
-            data = self.data[key].copy()
+            data = self.data[key].copy(deep = True)
             data = data[data.ab_id.isin(treatmentProts)]
             j = 0
             for prot in treatmentProts:
@@ -735,7 +864,7 @@ class NormalizedDataHandler:
         plt.savefig(self.folder_path + "Overview/TreatmentWOOutliers.png", dpi=199)
         plt.close()
 
-    def validate_knn_overlap(self, knnOverlap):
+    def validate_knn_overlap(self, knnOverlap, knnMetric):
         
         #Steps
         #bring data frames into right format
@@ -752,24 +881,35 @@ class NormalizedDataHandler:
             if("Groundtruth" in key):
                 continue
             
-            dataAllClusters = self.data[key].copy()
-            for cluster in dataAllClusters['cluster_id'].unique():
-                data = dataAllClusters[dataAllClusters["cluster_id"] == cluster]
-                
-                groundtruth = self.groundtruth.copy()
-                groundtruth = groundtruth[groundtruth["cluster_id"] == cluster]
-                overlapDist = calculate_knn_overlap(data, groundtruth)
+            dataTmp = self.data[key].copy(deep = True)
+            groundtruth = self.groundtruth.copy(deep = True)
+            
+            #if we run a gradient of various KNN thresholds (knnOverlap == 0)
+            print(knnOverlap)
+            if(knnOverlap == 0):
+                #in this case we take neighborhood numbers from 5% of samples to 95%
+                sampleNumber = len(dataTmp.sample_id.unique())
+                for percentage in np.arange(0.05, 1.0, 0.05):
+                    knn = round(percentage * sampleNumber)
+                    overlapDist = calculate_knn_overlap(dataTmp, groundtruth, knn, knnMetric)
+                    overlapDist['NORM_METHOD'] = str(key)
+
+                    if(result is None):
+                        result = overlapDist
+                    else:
+                        result = pd.concat([result, overlapDist], ignore_index=True)
+        
+            else: #if we only use a single threshold > 0
+                knn = knnOverlap
+                overlapDist = calculate_knn_overlap(dataTmp, groundtruth, knn, knnMetric)
                 overlapDist['NORM_METHOD'] = str(key)
-                overlapDist['CLUSTER_ID'] = str(cluster)
 
                 if(result is None):
                     result = overlapDist
                 else:
                     result = pd.concat([result, overlapDist], ignore_index=True)
-
+        
         #write final results
-        print("KNN GRAPH")
-        print(result)
         result.to_csv(self.knnOverlapFilePath, sep='\t', index=False)
 
 

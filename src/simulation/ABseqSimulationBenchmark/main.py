@@ -41,6 +41,11 @@ def parse_args():
     parser.add_argument('-k', action='store_true')
     parser.add_argument('--d', help='duplicates',
                         type=int, default=5)
+    
+    #variables for the benchmarking for classification/ knn Overlap (for now we always apply zscore)
+    parser.add_argument('--knn', help='number of KNN to calculate overlap of groundtruth/ normalized neighbors & for classification (default 20, -1 to skip step, 0 for a gradient of K which is only used for overlap)', type=int, default=20)
+    parser.add_argument('--metric', help = 'metric used for knn overlap/ classification: euclidean, manhattan or cosine',
+                        type=str, default='manhattan')
 
     args = parser.parse_args()
     
@@ -147,7 +152,9 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
 
                 #LIBRARY SIZE
                 if(variableParameter=="libSize"):
-                    newFile.write("libSize=[1," + str(i) + "]\n")
+                    newLine = line.replace("X", str(i))
+                    newFile.write(newLine)
+                    print(newLine)
 
                 #NOISE
                 if(variableParameter=="noise"):
@@ -224,6 +231,10 @@ def generate_simulation_iniFiles(iniFile, fileBenchmarksToKeep):
                         newLine += str(newValue) + ","
                     newLine += str(i) + "]\n"
                     newFile.write(newLine)
+                if(variableParameter=="numberClusterSpecificProteins"):
+                    integerProteinCount = int(i)
+                    newLine = line.replace("X", str(integerProteinCount))
+                    newFile.write(newLine)
             else:
                 #write same line into file
                 newFile.write(line)
@@ -238,13 +249,15 @@ def delete_tmp_folder(folder):
     if(os.path.exists(folder)):
         shutil.rmtree(folder)
 
-def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, duplicates, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations, benchmarkOnly):
+def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, duplicates, keepData, fileBenchmarksToKeep, 
+                  recentSimulationNumber, numberOfSimulations, benchmarkOnly, knnOverlap, knnMetric):
     printToTerminalOnce("#  RUNNING SIMULATION[" + str(recentSimulationNumber) + "/" + str(numberOfSimulations) + "]")
     try:
         for i in range(0,duplicates):
             param = Parameters(ini)
-            benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads, keepData, benchmarkOnly)
+            benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads, keepData, benchmarkOnly, knnOverlap, knnMetric)
             benchmark.run()
+            #all the data is just in BENCHMARKED_DATASETS and is now copied in specific 'duplicate' folder
             benchmark.moveIntoOneFolder(newSimulationDir, i)
             benchmark.copyResultsIntoOneFile(newSimulationDir, i)
             benchmark.deleteExcessData(newSimulationDir, fileBenchmarksToKeep) 
@@ -311,7 +324,7 @@ def main():
         numberOfSimulations = len(iniFilePathList)
         recentSimulationNumber = 1
         for ini in iniFilePathList:
-            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, args.d, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations, benchmarkOnly))
+            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, args.d, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations, benchmarkOnly, args.knn, args.metric))
             recentSimulationNumber = recentSimulationNumber + 1
 
         pool.close()
@@ -324,6 +337,6 @@ def main():
 
     if(args.s and not args.k):
         delete_tmp_folder(tmpDir)
-    
+
 if __name__ == '__main__':
     main()

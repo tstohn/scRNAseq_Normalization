@@ -36,6 +36,7 @@ def main():
     sim = SingleCellSimulation(param)
     sim.simulateData()
     sim.save_data()
+    sim.write_metadata()
 
     if(args.stdout != ""):
         outfile.close()

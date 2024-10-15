@@ -24,21 +24,19 @@ def load_datasets_for_benchmark(dir):
         if(os.path.isdir(sub_dir_path) and not file_list):
             one_dataset_only = False
             for file in listdir_nohidden(sub_dir_path):
-                if(isfile(join(sub_dir_path, file))):
+                if(isfile(join(sub_dir_path, file)) and not os.path.basename(file).endswith("metaData.tsv")):
                     file_list.append(join(sub_dir_path, file))
-                else:
-                    parse_error(dir)
             datasets.append(file_list.copy())
             file_list.clear()
         elif(one_dataset_only):
             file_path = join(dir, sub_dir)
-            if(isfile(file_path)):
+            if(isfile(file_path) and not os.path.basename(file_path).endswith("metaData.tsv")):
                 file_list.append(file_path)
-            else:
-                parse_error(dir)
         else:
             parse_error(dir)
     if(file_list):
         datasets.append(file_list.copy())
 
+
+    print(datasets)
     return datasets

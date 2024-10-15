@@ -59,12 +59,14 @@ class Benchmark():
 
     parameters=None
 
-    def __init__(self, parameters, stdoutFile = "", noExplicitelySetThreads = False, keepData = False, benchmarkOnly = False):
+    def __init__(self, parameters, stdoutFile = "", noExplicitelySetThreads = False, keepData = False, benchmarkOnly = False, knnOverlap = 20, knnMetric = "manhattan"):
         self.parameters = parameters
         self.stdout = stdoutFile
         self.noExplicitelySetThreads = noExplicitelySetThreads
         self.keepData = keepData
         self.benchmarkOnly = benchmarkOnly
+        self.knnOverlap = knnOverlap
+        self.knnMetric = knnMetric
 
     def __generateNormalizationIni(self, normOriginFilePath):
         iniFile = removesuffix(normOriginFilePath,'.tsv') + ".ini"
@@ -113,6 +115,7 @@ class Benchmark():
         newSimulatedName = "Simulation.tsv"
         groundTruthFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newGroundTruthName)
         simulatedFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newSimulatedName)
+        metaDataFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/metaData.tsv")
 
         if(self.benchmarkOnly):
             printToTerminalOnce("SKIP SIMULATIONS; go stright to benchmark: make sure INI files (check path in pipeline ini) and normalized folders per ini exist (in bin/NORMALIZED_DATASETS)")
@@ -204,6 +207,11 @@ class Benchmark():
                 simulatedResultFilePath = simulationFilePath + simulatedName
                 commandString = "cp " + simulatedResultFilePath + " " + simulatedFile
                 subprocess.run([commandString], shell = True, check = True)
+                
+                #move meta-data into normalization folder
+                metaDataFilePath = simulationFilePath + "/" + simulationName + "_metadata.tsv"
+                commandString = "cp " + metaDataFilePath + " " + metaDataFile
+                subprocess.run([commandString], shell = True, check = True)                
 
                 #remove the ab_count with ab_count_normalized to still run benchmark on it
                 #from ground truth
@@ -231,11 +239,16 @@ class Benchmark():
             normResultFilePath = "./bin/NORMALIZED_DATASETS/" + simulationName
             benchmarkCommand = ""
             if(self.noExplicitelySetThreads):
-                benchmarkCommand = "python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t -1 " + normResultFilePath
+                benchmarkCommand = "python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t -1" + " --knn " + str(self.knnOverlap)  + " --metric " + self.knnMetric + " " + normResultFilePath
             else:
-                benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1 " + normResultFilePath
-
+                benchmarkCommand = "OMP_NUM_THREADS=1 USE_SIMPLE_THREADED_LEVEL3=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 src/benchmark/main.py --groundtruth --iniFile " + self.parameters.iniFile + " --stdout " + self.stdout + " --t 1" + " --knn " + str(self.knnOverlap)  + " --metric " + self.knnMetric + " " + normResultFilePath
+            printToTerminalOnce("Running benchmark with: " + benchmarkCommand + "\n")
             subprocess.run([benchmarkCommand], shell = True, check = True)
+            
+            #copy the raw data into the final folder
+            finalFolderName = "./bin/BENCHMARKED_DATASETS/" + simulationName
+            commandString = "cp -r " + normResultFilePath + " " + finalFolderName
+            subprocess.run([commandString], shell = True, check = True)
 
             if(not self.keepData):
                 #delete folder of normalized data
@@ -260,6 +273,9 @@ class Benchmark():
                 shutil.rmtree(newSimulationDir + "/" + simulationName)
             shutil.move("./bin/BENCHMARKED_DATASETS/" + simulationName, newSimulationDir)
             os.rename(newSimulationDir + "/" + simulationName, newSimulationDir + "/" + simulationName + "_" + str(dublicateNum))
+
+        #copy the ini file 
+        shutil.copy(self.parameters.iniFile, newSimulationDir + "/" + simulationName + "_" + str(dublicateNum))
 
     def combine_files(self, newSimulationDir, resultDir, fileName, dublicationNum):
         newFile = open(resultDir + fileName, 'a')  
@@ -292,9 +308,10 @@ class Benchmark():
             os.mkdir(resultDir)
 
         #Spearman RMSD data
-        fileNameList = ["spearmanRMSD.tsv", "treatmentAccuracy.tsv", "spearmanCorrelations.tsv", "ABSpearmanCoeff.tsv", "knnOverlap.tsv", "PercentageCorrelationDetection.tsv"]
+        fileNameList = ["spearmanRMSD.tsv", "Clustering.tsv", "spearmanCorrelations.tsv", "ABSpearmanCoeff.tsv", "knnOverlap.tsv", "PercentageCorrelationDetection.tsv"]
         for fileName in fileNameList:
             self.combine_files(newSimulationDir, resultDir, fileName, dublicationNum)
+        
 
     def deleteExcessData(self, newSimulationDir, fileBenchmarksToKeep):
         folderName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))

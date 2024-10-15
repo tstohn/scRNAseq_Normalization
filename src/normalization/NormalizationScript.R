@@ -165,7 +165,8 @@ run_tmm<-function(data)
   return(normalized_data)
 }
 
-run_clr_seurat<-function(data)
+#margin 2 is in every row (if cells are in rows), and 1 is per column (within every protein - this DOES NOT CHANGE SPEARMAN-CORR)
+run_clr_seurat<-function(data, normDim = 2)
 {
   print("RUNNING CLR SEURAT NORMALIZATION")
   #Seurat fails for underscores in feature names (therefore temporarily substitute those with a rare char - 
@@ -184,7 +185,7 @@ run_clr_seurat<-function(data)
   #create seurat object
   seurat_data <- CreateSeuratObject(counts = countdata)
   #normalize
-  normalized_data <- NormalizeData(seurat_data, normalization.method = "CLR", margin = 2)
+  normalized_data <- NormalizeData(seurat_data, normalization.method = "CLR", margin = normDim)
   #regain a dataframe of features X samples
   normalized_data_dgCMatrix <- normalized_data@assays$RNA@data
   normalized_data_frame <- as.data.frame(as.matrix(normalized_data_dgCMatrix))
@@ -503,6 +504,18 @@ run_normalization<-function(dataset, method)
       normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
     }
     output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLRSEURAT.tsv")
+    write_tsv(normalized_data, file=output_table)
+  }
+  else if(method=="CLR_SEURAT_DEFAULT")
+  {
+    #CLR is alraedy a log transformation
+    normalized_data<- data %>% 
+      run_clr_seurat(normDim = 1)
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/CLRSEURAT_DEFAULT.tsv")
     write_tsv(normalized_data, file=output_table)
   }
   else if(method=="LEAVE_ONE_OUT_TMM")

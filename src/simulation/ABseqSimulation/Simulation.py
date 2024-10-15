@@ -22,6 +22,8 @@ from copulas.univariate.base import BoundedType, ParametricType, ScipyModel
 from copulas.multivariate import Multivariate
 sys.path.append('./src/methods/nearest_correlation')
 from nearest_correlation import nearcorr
+import copy
+import math
 
 def LINE():
     return sys._getframe(1).f_lineno
@@ -54,8 +56,12 @@ def convert_neg_binom_params(mu, size):
     n = size
     p = 1 / (1 + (mu / size))
 
+    #n = (mu * p)/(1 - p)
+
     return n, p
     
+#class to handle the mu s for all proteins
+#these are smapled from another distribution/ and have a Min cutoff
 class ProteinCountDistribution():
 
     def __convert_params(self, mu, size):
@@ -64,14 +70,26 @@ class ProteinCountDistribution():
         n = size
         p = 1 / (1 + (mu / size))
     
+        #n = (mu * p)/(1 - p)
+
         return n, p
 
-    def __init__(self, number, mu, size):
+    def __init__(self, number, mu, size, MinProtein=0):
+        
         #calculate n and p parameters
         n, p = self.__convert_params(mu, size)
-        abCountVector = nbinom.rvs(n ,p, size = number)
+        #instead of drawing number samples, draw one by one and check if theyr above threshold
+        #abCountVector = nbinom.rvs(n ,p, size = number)
+        abCountVector=np.array([], dtype=int)
+        while len(abCountVector) < number:
+            draw = nbinom.rvs(n=n, p=p, size=1)
+            if draw >= MinProtein:
+                abCountVector = np.concatenate((abCountVector, draw))
         self.abCountVector = abCountVector
-
+        
+        print("MADE PROTEIN MEANS:")
+        print(self.abCountVector)
+        
     def distributionValues(self):
         return(self.abCountVector)
 
@@ -97,6 +115,7 @@ class Parameters():
     seqAmplificationEfficiency = None
     #list of namedtuples ProteinLevel
     ProteinLevels = None
+    MinProtein = 0
     size = None
     CellNumber = None
     ProteinNumber = None
@@ -114,7 +133,7 @@ class Parameters():
     #CORRELATIONS 1.)
     randomProteinCorrelations=0
     betaParameter=0
-    betaFactors=[]
+    addBetaParameters=[]
     
     #CORRELATIONS 2.)
     proteinCorrelationDists = []
@@ -126,6 +145,15 @@ class Parameters():
     numberOfClusters = 1
     abundanceFactors=[]
     numberClusterSpecificProteins=[]
+    clusterSpecificProteinNames=[]
+    scaleSameProteins=False
+    
+    #TRAJECTORIES
+    """ We can simulate also trajectories instead of discrete clusters:
+    for simplicity we CAN NOT specify those trajectories in the simulation.ini file,
+    we can only set those trajectories ON, and then we have a hard-coded simple way of simulating those
+    (all we can define are the number of proteins involved in those trajectories in the ini file)"""
+    trajectory = None
 
     correlationFactors=[]
     correlationSets=[]
@@ -165,6 +193,9 @@ class Parameters():
                     else:
                         self.ProteinLevels = [newProteinLevels]
                 self.ProteinNumber = proteinNumber
+            elif(str.startswith(line, "MinProtein=")):
+                info = re.match(("MinProtein=(.*)"), line)
+                self.MinProtein = int(info[1].rstrip("\n"))
             elif(str.startswith(line, "size=")):
                 info = re.match(("size=(.*)"), line)
                 self.size = info[1].rstrip("\n")
@@ -228,13 +259,13 @@ class Parameters():
                 info = info[1].rstrip("\n")
                 self.betaParameter = float(info)
                 assert self.randomProteinCorrelations>0, "beta parameter must be > 0 (keep in mind, you ether set this OR give correlation specific distributions to sample from)"
-            elif(str.startswith(line, "betaFactors=")):
-                info = re.match(("betaFactors=(.*)"), line.rstrip('\n'))
+            elif(str.startswith(line, "betaParameters=")):
+                info = re.match(("betaParameters=(.*)"), line.rstrip('\n'))
                 info = info[1].rstrip("\n")
                 assert info[0] == "[", "First character must be '[' for following line in the ini file: " + line
                 assert info[-1] == "]", "Last character must be ']' for following line in the ini file: " + line                
-                self.betaFactors = ast.literal_eval(info)
-                self.betaFactors = [float(element) for element in self.betaFactors]
+                self.addBetaParameters = ast.literal_eval(info)
+                self.addBetaParameters = [float(element) for element in self.addBetaParameters]
             #CORRELATION VARIABLES 2.)
             elif(str.startswith(line, "proteinCorrelationDists=")): 
                 #same for as ProteinLevels: [[mu, sd, #proteins]; ...] 
@@ -294,6 +325,21 @@ class Parameters():
                     newSet = ast.literal_eval(element)
                     newSet = [int(element) for element in newSet]
                     self.correlationSets.append(newSet)
+            elif(str.startswith(line, "trajectory=")): 
+                trajectory = re.match(("trajectory=(.*)"), line)
+                trajectory = str(trajectory[1])
+                if( (trajectory == "linear") or (trajectory == "branche") or (trajectory == "cycle")):
+                    self.trajectory = trajectory
+                else:
+                    print("Wrong trajectory stated:" + trajectory)
+                    print("You must choose between: linear, branche, cycle!!\n")
+                    exit()
+            elif(str.startswith(line, "scaleSameProteins=")):
+                scaleSameProteins = re.match(("scaleSameProteins=(.*)"), line)
+                scaleSameProteins = int(scaleSameProteins[1])
+                if(scaleSameProteins == 1):
+                    self.scaleSameProteins = True
+
             line = file.readline()
         #we need exactly one abundance/ correlation/ percentage factor for every clusters
         self.numberOfClusters = len(self.cellPercentages)
@@ -520,11 +566,12 @@ class SingleCellSimulation():
         
         perturbFrame = pd.DataFrame()
         perturbFrame["sample_id"] = data["sample_id"].unique()
-        #sample lbisize factors from normal dist: 1.value = mean, 2.= std
-        perturbFrame["factor"] = np.random.normal(self.parameters.libSize[0],self.parameters.libSize[1], len(perturbFrame))
-
+        #sample lbisize factors from log normal dist: 1.value = mean, 2.= std
+        perturbFrame["factor"] = np.random.lognormal(self.parameters.libSize[0],self.parameters.libSize[1], len(perturbFrame))
+        print(perturbFrame)
         perturbDict = dict(zip(perturbFrame["sample_id"], perturbFrame["factor"]))
-        data["ab_count"] = data["ab_count"] * data["sample_id"].map(perturbDict)
+        data["ab_count"] = data["ab_count"] / data["sample_id"].map(perturbDict)
+        self._libsizeFactors = perturbDict
 
         return(data)
 
@@ -590,7 +637,7 @@ class SingleCellSimulation():
     
     def __sampleFromCorrelationDist(self, setIdx=None, scalingFactor = 1.0):
         mean = 0.0
-        std = 0.0
+        std = 0.01
         if(setIdx is None):
             mean = self.parameters.proteinCorrelationMean * scalingFactor
             std = self.parameters.proteinCorrelationStd
@@ -685,20 +732,16 @@ class SingleCellSimulation():
 
         return(covMat)
         
-    #make a list of all the protein distributions
-    def __generateProteinDistributions(self,scaledProteinIdxs, clusterIdx):
+    #make a list of all the protein distributions: defined by mu/ size
+    def __generateProteinDistributions(self):
             
         distributions = []
         protein = 0
-        #we need to insert 1.0 abudnace factor for baseline clusterIdx=0
-        abundanceFactorsWithBaseline = self.parameters.abundanceFactors
-        abundanceFactorsWithBaseline.insert(0, 1.0) #base cluster has no sclaing of protein abudnance (so times factor 1.0)
 
-        proteinsToScale = scaledProteinIdxs[clusterIdx]
         for proteinRange in self.parameters.ProteinLevels:
             
             #generate mu/ size for all proteins of the proteinRange distribution (sampled from distribution of means and the calculating size)
-            dist = ProteinCountDistribution(proteinRange.number, proteinRange.mu, proteinRange.size)
+            dist = ProteinCountDistribution(proteinRange.number, proteinRange.mu, proteinRange.size, self.parameters.MinProtein)
             proteinCountVector = dist.distributionValues() #vector of mean values for all proteins for this proteinRange-distribution
              
             for i in range(proteinRange.number):       
@@ -707,10 +750,30 @@ class SingleCellSimulation():
                 mu_tmp = proteinCountVector[i]
                 size_tmp = self.__calculate_size_from_mu(mu_tmp)
                          
-                #sclae mu by cluster specific scaling factor
+                tmpDict = {'mu': mu_tmp, 'size': size_tmp}
+                distributions.append(tmpDict)
+
+                protein += 1
+
+        return(distributions)
+    
+    #add cluster specific effects and convert to n, p
+    def __generateClusterSpcecificProteinDistributions(self,baseDistributions, scaledProteinIdxs, clusterIdx):
+            
+        distributions = []
+        protein = 0
+
+        proteinsToScale = scaledProteinIdxs[clusterIdx]
+        for dist in baseDistributions:
+                            
+                #get the very specific mu/ size for the protein i in this proteinRange-distribution
+                mu_tmp = dist["mu"]
+                size_tmp = dist["size"]
+                         
+                #scale mu by cluster specific scaling factor
                 if(protein in proteinsToScale):
                     assert clusterIdx != 0, "The zero Cluster(baseline, not sclaed) can not have a scaling factor"
-                    mu_tmp = mu_tmp * abundanceFactorsWithBaseline[clusterIdx]
+                    mu_tmp = mu_tmp * self.parameters.abundanceFactors[clusterIdx]
 
                 n,p = convert_neg_binom_params(mu_tmp, size_tmp)
                 tmpDict = {'loc': 0.0, 'n': n, 'p': p, 'type': NegBinomUnivariate}
@@ -758,9 +821,8 @@ class SingleCellSimulation():
     def __generateRandomCorrelations(self):
         covariancematrix = []
         
-        betaFactors = self.parameters.betaFactors
-        betaFactors.insert(0, 1.0)
-        betaParams = [self.parameters.betaParameter * x for x in betaFactors]
+        betaParams = self.parameters.addBetaParameters
+        betaParams.insert(0, self.parameters.betaParameter)
         assert(len(betaParams) == self.parameters.numberOfClusters)
         for idx in range(self.parameters.numberOfClusters):
             covariancematrix.append(self.__vineBeta(self.parameters.ProteinNumber, betaParams[idx]))
@@ -786,9 +848,18 @@ class SingleCellSimulation():
         #scaling factors for all correlations in the scaledCorrelationIdxs
         correlationScalingFactors = self.parameters.correlationFactors
         correlationScalingFactors.insert(0, 1.0)
-        for idx in range(self.parameters.numberOfClusters):
-            covariancematrix.append(self.__generateCovarianceMatrix(
-                correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx))
+
+        #if there r not corelation differences between cluster, generate ONLY ONE COV matrix
+        #otherwise slight corr differences will result in perfect cluster seperation
+        if not len(correlationProteinsSets):
+            idx = 0
+            covMatTmp = self.__generateCovarianceMatrix(correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx)
+            for idx in range(self.parameters.numberOfClusters):
+                covariancematrix.append(covMatTmp)
+        else:
+            for idx in range(self.parameters.numberOfClusters):
+                covariancematrix.append(self.__generateCovarianceMatrix(
+                    correlationProteinsSets, scaledCorrelationIdxs, correlationScalingFactors, idx))
 
         return(covariancematrix)
     
@@ -801,7 +872,263 @@ class SingleCellSimulation():
             covariancematrix = self.__generateSampledCorrelations()
 
         return(covariancematrix)
-            
+    
+    def add_AB_to_name(self, list):
+        # Iterate through each sublist
+        for i in range(len(list)):
+            # Iterate through each number in the sublist
+            for j in range(len(list[i])):
+                # Concatenate "AB" with the number and replace the original number
+                list[i][j] = "AB" + str(list[i][j])
+                
+    def __sigmoidal_protein_activation(self, x):
+        #sigmoidal function goes from -INF to INF
+        #most of the change happens however between -4 and 4
+        # we scale sigmoidal between 0-1 (this is then the factor for the protein: e.g., protein has a fold cahnge of 2, the actual count is then 
+        # control + sigmoid(x)*fold-change * control )
+        # scaling works with: (value - 0.5) * 8 to go from 0_1 range to -4_4
+        
+        scaled_x = (x - 0.5) * 8
+        return(1 / (1 + np.exp(-scaled_x)))
+    
+    def __generateStartDict(self, overlap, pseudoTimeProteins):
+        startDict = {}
+        start = 0.0
+        for p in pseudoTimeProteins:
+            startDict[p] = start
+            start += overlap
+        return(startDict)
+    
+    def __pseudotime_protein_count(self, pseudoTimeProteins, baseDistributions, startDict, 
+                                   proteinFactor, timeStepLength, cellFraction):
+        #result data frame
+        data = {
+            'sample_id': [],
+            'ab_id': [],
+            'ab_count': []
+        }
+        pseudoTimeProteinCounts = pd.DataFrame(data)
+
+        #follow pseudo-time and sample proteins
+        cellnumber = 0
+        for timeStep in range(1, int(self.parameters.CellNumber * cellFraction) + 1):
+            timePoint = timeStep * timeStepLength
+            for protein in pseudoTimeProteins:
+                sigmoidalActivationFactor = 0
+                if(timePoint>=startDict[protein]):
+                    sigmoidalActivationFactor = self.__sigmoidal_protein_activation(timePoint-startDict[protein])
+
+                #here sample the p[rotein count form a negative binomial (only take a single sample)
+                proteinCountMean = baseDistributions[protein].get("mu") + sigmoidalActivationFactor * proteinFactor * baseDistributions[protein].get("mu")
+                dist = ProteinCountDistribution( 1, mu = proteinCountMean, 
+                                                size = baseDistributions[protein].get("size"), MinProtein = self.parameters.MinProtein)
+                proteinCount = dist.distributionValues()[0]
+                
+                proteinCountDict = {'sample_id': 'sample_'+ str(cellnumber+1), 'ab_id': "AB"+str(protein), 'ab_count': proteinCount}
+                proteinCountFrame = pd.DataFrame([proteinCountDict])
+                pseudoTimeProteinCounts = pd.concat([pseudoTimeProteinCounts, proteinCountFrame], ignore_index=True)
+            cellnumber += 1
+        return(pseudoTimeProteinCounts)   
+    
+    def __pseudotime_protein_count_with_degradation(self, pseudoTimeProteins, baseDistributions, startDict, 
+                                   proteinFactor, timeStepLength, cellFraction):
+        #result data frame
+        data = {
+            'sample_id': [],
+            'ab_id': [],
+            'ab_count': []
+        }
+        pseudoTimeProteinCounts = pd.DataFrame(data)
+        
+        #total timeFrame length
+        timeFrameLength = int(self.parameters.CellNumber * cellFraction) * timeStepLength
+
+        #follow pseudo-time and sample proteins
+        cellnumber = 0
+        print(startDict)
+        
+        for timeStep in range(1, int(self.parameters.CellNumber * cellFraction) + 1):
+            timePoint = timeStep * timeStepLength
+            print("TIME: "+str(timePoint))
+            print("_____")
+            for protein in pseudoTimeProteins:
+                print(str(protein) + ": ",end='')
+                sigmoidalActivationFactor = 0
+                #reset timePoint to fit into the infinite timeBox (imagine t = 0 is also t=max since we enter t=0 at the end our time frame)
+                infiniteTimePoint = timePoint
+                #check if we have to re-set the infinite timePoint
+                
+                #1.)if the startPoint of the protein is behind the timepoint (timeLength - 2), it must affect my current time point
+                #and we need to temporaryly reset our infinite timeFrame
+                #2 for activation + deactivation eachj of length 1
+                
+                #2.) if the current time point is actually between the proteinStart and timeFrameEnd then we r right now
+                #within the activation/ deactivation range of the protein, even though this protein also spans
+                #then infinite time point and we here have to treat it as a normal protein
+                if( (timeFrameLength - 2) < (startDict[protein]) and 
+                   not ( ((startDict[protein])<=timePoint) and (timePoint <=timeFrameLength ))  ):
+                    infiniteTimePoint = timeFrameLength + timePoint
+                    print("infinite", end = '')
+                
+                if(infiniteTimePoint >= startDict[protein] and infiniteTimePoint < (startDict[protein]+1.0) ):
+                    sigmoidalActivationFactor = self.__sigmoidal_protein_activation(infiniteTimePoint-startDict[protein])
+                    print(" up ",end='')
+
+                elif(infiniteTimePoint >= (startDict[protein]+1.0) and infiniteTimePoint <= (startDict[protein]+2.0)):
+                    #sigmoidal deactivation is basically 1 - activation
+                    sigmoidalActivationFactor = (1 - self.__sigmoidal_protein_activation(infiniteTimePoint-(startDict[protein]+1)))
+                    print(" down ",end='')
+
+                proteinCountMean = baseDistributions[protein].get("mu") + sigmoidalActivationFactor * proteinFactor * baseDistributions[protein].get("mu")
+                dist = ProteinCountDistribution( 1, mu = proteinCountMean, 
+                                                size = baseDistributions[protein].get("size"), MinProtein = self.parameters.MinProtein)
+                proteinCount = dist.distributionValues()[0]
+                
+                proteinCountDict = {'sample_id': 'sample_'+ str(cellnumber+1), 'ab_id': "AB"+str(protein), 'ab_count': proteinCount}
+                proteinCountFrame = pd.DataFrame([proteinCountDict])
+                pseudoTimeProteinCounts = pd.concat([pseudoTimeProteinCounts, proteinCountFrame], ignore_index=True)
+            cellnumber += 1
+        return(pseudoTimeProteinCounts)  
+    
+    """ sample all the proteins from a neg. binom. dist except the ones in
+    pseudoTimePropteins, as those were sampled to follow the specific pseudoTime
+    trajectory"""    
+    def __sample_proteins_from_negBinom(self, baseDistributions, pseudoTimeProteins, cellFraction):
+        #the result matrix
+        proteinCountMatrix = None
+        #for every proteins except the pseudotime ones
+        #firstly store it in a df with one column per AB, then pivot it in the end
+        for protIdx in range(self.parameters.ProteinNumber):
+            if(not protIdx in pseudoTimeProteins):
+                dist = ProteinCountDistribution( int(self.parameters.CellNumber * cellFraction), mu = baseDistributions[protIdx].get("mu"), 
+                                                size = baseDistributions[protIdx].get("size"), MinProtein = self.parameters.MinProtein)
+                proteinCountVector = dist.distributionValues()
+                abName = "AB" + str(protIdx)
+                #add it to a matrix as a new column
+                if(proteinCountMatrix is None):
+                    proteinCountMatrix = pd.DataFrame({abName : proteinCountVector}) 
+                    proteinCountMatrix.index = ["sample_" + str(j+1) for j in range( int(self.parameters.CellNumber * cellFraction))]
+                else:
+                    proteinCountMatrix[abName] = proteinCountVector
+
+        #convert dataframe into final format
+        proteinCountMatrix = proteinCountMatrix.reset_index().rename(columns={ 'index' : 'sample_id'})
+        proteinCountMatrix = proteinCountMatrix.melt(id_vars = ["sample_id"], var_name="ab_id", value_name="ab_count")
+        return(proteinCountMatrix)             
+                
+    def __generateLinearGroundTruth(self, clusterSpecificProteinIdxs, overlap = 0.25,
+                                    cellFraction = 1.0, baseDistributions = None):
+        #generate pseudo-time function (one function of overlapping sigmoidals mapping time to locatio in protein space)
+        
+        #calculate time-steps 
+        #pseudotime runs from 0 to sum of all sigmoidals per protein (overlapping)
+        #overlap of 0.5 means next sigmoid start after previous one was activated to 50%
+        numberPorteins = self.parameters.numberClusterSpecificProteins[0] #proteins in first cluster (we should only have ONE additional clsuter, numberClusterSpecificProteins does not contain control)
+        #summed time are all the sigmoid parts before the overlap of the next plus what is missing in the end for the sigmoid
+        summedPseudoTime = overlap * numberPorteins + (1.0 - overlap)
+        #individual time steps from cell to cell
+        timeStepLength = summedPseudoTime/ float(self.parameters.CellNumber * cellFraction)
+        #both clusterSpecificProteinIdxs and self.parameters.abundanceFactors has control at 0 index
+        pseudoTimeProteinList = clusterSpecificProteinIdxs[1] #list of proptein indices
+        proteinFactor = self.parameters.abundanceFactors[0] #same factor for all proteins of same cluster: 0 is first cluster and not control
+        
+        print(pseudoTimeProteinList)
+        #sample mean of all proteins
+        if(baseDistributions is None):
+            baseDistributions = self.__generateProteinDistributions() 
+        # dicts map the INDEX to the MEAN/START-TIME
+        startDict = self.__generateStartDict(overlap, pseudoTimeProteinList)
+        
+        #calculate actual protein count after every pseudotime-step
+        pseudoTimeProteins = self.__pseudotime_protein_count(pseudoTimeProteinList, baseDistributions, startDict, 
+                                                             proteinFactor, timeStepLength, cellFraction)
+        pseudoTimeProteins.insert(0, 'ab_type', 'trajectoryProteins')
+        
+        #calculate all the other random proteins
+        randomProteins = self.__sample_proteins_from_negBinom(baseDistributions, pseudoTimeProteinList, cellFraction)
+        randomProteins.insert(0, 'ab_type', 'randomProteins')
+
+        #combine data frames
+        linearGroundTruth = pd.concat([pseudoTimeProteins, randomProteins], ignore_index = True)
+        linearGroundTruth["ab_count"] = np.round(linearGroundTruth["ab_count"])
+        linearGroundTruth.insert(0, 'cluster_id', 'no_cluster')
+        linearGroundTruth.insert(0, 'batch_id', 'no_batch')
+        print(linearGroundTruth)
+        
+        return(linearGroundTruth)
+                    
+    """ proteins accumulate until ONE cell state and are then subsequentyl degraded again..."""
+    def __generateCyclicGroundTruthWithLibsize(self, clusterSpecificProteinIdxs):
+        #basically its the same as doing two linear ground truths that connect
+        #linear ground truth is actually sequntial sigmoidal activations, we can run it twice in
+        #inverted order of proteins, and with less overlap of sigmoidals to create a wider circle
+        
+        #make sure we use the same base dist for both trajectories (forward & backwards)
+        baseDistributions = self.__generateProteinDistributions() 
+        forwardOrder = self.__generateLinearGroundTruth(clusterSpecificProteinIdxs, overlap = 0.75, 
+                                                        cellFraction = 0.5, baseDistributions = baseDistributions)
+        #reverse protein Order for cluster specific proteins (cluster marks to maximum point of circle connected to control)
+        clusterSpecificProteinIdxs[1] = clusterSpecificProteinIdxs[1][::-1]
+        reverseOrder = self.__generateLinearGroundTruth(clusterSpecificProteinIdxs, overlap = 0.75, 
+                                                        cellFraction = 0.5, baseDistributions = baseDistributions)
+        #sample_ids now exist twice, we need to change the number
+        ids = reverseOrder['sample_id'].str.extract(r'_(\d+)').astype(int)
+        print(ids)
+        ids = ids + int(self.parameters.CellNumber * 0.5)
+        reverseOrder["sample_id"] = "sample_" + ids.astype(str)
+        print(reverseOrder)
+        print(reverseOrder["sample_id"])
+
+        circleData = pd.concat([forwardOrder, reverseOrder], ignore_index = True)
+        return(circleData)
+    
+    
+    """ proteins are one after the other acitvated and immeidately degraded.
+        During activation of first protein the last one is also already degraded"""
+    def __generateCyclicGroundTruth(self, clusterSpecificProteinIdxs, overlap = 0.5,
+                                    cellFraction = 1.0, baseDistributions = None):
+        #generate pseudo-time function (one function of overlapping sigmoidals mapping time to locatio in protein space)
+        
+        #calculate time-steps 
+        #pseudotime runs from 0 to sum of all sigmoidals per protein (overlapping)
+        #overlap of 0.5 means next sigmoid start after previous one was activated to 50%
+        numberPorteins = self.parameters.numberClusterSpecificProteins[0] #proteins in first cluster (we should only have ONE additional clsuter, numberClusterSpecificProteins does not contain control)
+        #summed time are all the sigmoid parts before the overlap of the next plus what is missing in the end for the sigmoid
+        #the activation is of length 1 but the deactivation as well!!!
+        summedPseudoTime = overlap * numberPorteins
+        #individual time steps from cell to cell
+        timeStepLength = summedPseudoTime/ int(self.parameters.CellNumber * cellFraction)
+        #both clusterSpecificProteinIdxs and self.parameters.abundanceFactors has control at 0 index
+        pseudoTimeProteinList = clusterSpecificProteinIdxs[1] #list of proptein indices
+        proteinFactor = self.parameters.abundanceFactors[0] #same factor for all proteins of same cluster: 0 is first cluster and not control
+        
+        print(pseudoTimeProteinList)
+        #sample mean of all proteins
+        if(baseDistributions is None):
+            baseDistributions = self.__generateProteinDistributions() 
+        # dicts map the INDEX to the MEAN/START-TIME
+        startDict = self.__generateStartDict(overlap, pseudoTimeProteinList)
+        
+        #calculate actual protein count after every pseudotime-step
+        pseudoTimeProteins = self.__pseudotime_protein_count_with_degradation(pseudoTimeProteinList, baseDistributions, startDict, 
+                                                             proteinFactor, timeStepLength, cellFraction)
+        pseudoTimeProteins.insert(0, 'ab_type', 'trajectoryProteins')
+        
+        #calculate all the other random proteins
+        randomProteins = self.__sample_proteins_from_negBinom(baseDistributions, pseudoTimeProteinList, cellFraction)
+        randomProteins.insert(0, 'ab_type', 'randomProteins')
+
+        #combine data frames
+        linearGroundTruth = pd.concat([pseudoTimeProteins, randomProteins], ignore_index = True)
+        linearGroundTruth["ab_count"] = np.round(linearGroundTruth["ab_count"])
+        linearGroundTruth.insert(0, 'cluster_id', 'no_cluster')
+        linearGroundTruth.insert(0, 'batch_id', 'no_batch')
+        print(linearGroundTruth)
+        
+        return(linearGroundTruth)
+
+#    def __generateBranchingGroundTruth(self, clusterSpecificProteinIdxs):
+
     def __generateGroundTruthWithCopula(self):
         # ALL LIST ORDERED BY CLUSTER
         distributions = [] #list of the cluster specific distribution for proteins (scaled by factors for clusters)
@@ -813,13 +1140,33 @@ class SingleCellSimulation():
         if(self.parameters.numberOfClusters > 1):
             #idices go only from 0 to clsuters-1, since we do not need to get clusterSpecificProtein nuber for baseline cluster,
             #and the numberClusterSpecificProteins list is ordered starting from 0 with the first cluster, so that zero does not refer to baseline here
-            for idx in range(self.parameters.numberOfClusters-1):
-                subset = random.sample(range(self.parameters.ProteinNumber), self.parameters.numberClusterSpecificProteins[idx])
-                clusterSpecificProteinIdxs.append(subset)
-                              
+            if(self.parameters.scaleSameProteins == 0):
+                #for seperate proteins sample the set per cluster
+                for idx in range(self.parameters.numberOfClusters-1):
+                    subset = random.sample(range(self.parameters.ProteinNumber), self.parameters.numberClusterSpecificProteins[idx])
+                    clusterSpecificProteinIdxs.append(subset)
+            else:
+                #otherwise sample ONCE and every cluster has the same proteins with fold-change
+                firstClusterIdx = 0
+                subset = random.sample(range(self.parameters.ProteinNumber), self.parameters.numberClusterSpecificProteins[firstClusterIdx])
+                for idx in range(self.parameters.numberOfClusters-1):
+                    if(idx != self.parameters.numberClusterSpecificProteins[firstClusterIdx]):
+                        print("If all cluster have THE SAME PROTEINS, all clusters MUST also ahve the SAME NUMBER OF FOLD-CHANGE PROTEINS \
+                              in the variable <numberClusterSpecificProteins>")
+                        exit()
+                    clusterSpecificProteinIdxs.append(subset)
+        
+        self.parameters.clusterSpecificProteinNames = copy.deepcopy(clusterSpecificProteinIdxs)
+        self.add_AB_to_name(self.parameters.clusterSpecificProteinNames) 
+            
         #CLUSTER SPECIFIC PROTEIN-DISTRIBUTION-PARAMETRIZATION (scaled for proteins)
+        #firstly generate distributions for every proteins (mu/ size) independant of clusters
+        baseDistributions = self.__generateProteinDistributions() 
+        #convert neg.binom to n,p and additionally add scaling factors for cluster
+        #we need to insert 1.0 abudnace factor for baseline clusterIdx=0
+        self.parameters.abundanceFactors.insert(0, 1.0) #base cluster has no sclaing of protein abudnance (so times factor 1.0)
         for idx in range(self.parameters.numberOfClusters):
-            distributions.append(self.__generateProteinDistributions(clusterSpecificProteinIdxs, idx))
+            distributions.append(self.__generateClusterSpcecificProteinDistributions(baseDistributions, clusterSpecificProteinIdxs, idx))
 
         #CLUSTER SPECIFIC COVARIANCE MATRIX (scaled for protein-apirs) - list: one per cluster
         covariancematrix =  self.__generateClusterSpecificCovarianceMatrices()
@@ -1030,8 +1377,28 @@ class SingleCellSimulation():
                 
         #for every cluster: scale protein distributions; scale correlations; sample using gaussian copula
         # (protein counts scaled/ correlations scaled/ and then sampled from theirs dists by copula)
-        self.groundTruthData = self.__generateGroundTruthWithCopula()
-            
+        if(self.parameters.trajectory is None):
+            self.groundTruthData = self.__generateGroundTruthWithCopula()
+        else:
+            clusterSpecificProteinIdxs = [[]]
+            if(self.parameters.numberOfClusters > 1):
+                #for seperate proteins sample the set per cluster
+                for idx in range(self.parameters.numberOfClusters-1):
+                    subset = random.sample(range(self.parameters.ProteinNumber), self.parameters.numberClusterSpecificProteins[idx])
+                    clusterSpecificProteinIdxs.append(subset)
+            if(self.parameters.trajectory == "linear"):
+                assert(len(clusterSpecificProteinIdxs) == 2, "We need two clusters with 1 cluster with specific proteins for linear trajectory \
+                    to model how proteins cahnge from control to cluster_1")
+                self.groundTruthData = self.__generateLinearGroundTruth(clusterSpecificProteinIdxs) 
+            elif(self.parameters.trajectory == "cycle"):
+                assert(len(clusterSpecificProteinIdxs) == 2, "We need two clusters with 1 cluster with specific proteins for cycle trajectory \
+                    to model how proteins cahnge from control to cluster_1 in cyclic way")
+                self.groundTruthData = self.__generateCyclicGroundTruth(clusterSpecificProteinIdxs) 
+            elif(self.parameters.trajectory == "branch"):
+                assert(len(clusterSpecificProteinIdxs) == 4)
+                self.groundTruthData = self.__generateBranchingGroundTruth(clusterSpecificProteinIdxs, "We need 4 clusters with 3 cluster with specific proteins for linear trajectory \
+                    to model how proteins change linearly to cluster_1, and then rbanch into two seperate trajectories.")
+
         #not interesting at this point (initialy thought of AB duplicates for normalization)
         if(self.parameters.abDuplicates > 1):
             self.groundTruthData = self.__insert_ab_duplicates(self.groundTruthData)
@@ -1041,13 +1408,14 @@ class SingleCellSimulation():
         if(not (self.parameters.batchFactors is None)):
             perturbedData = self.__insert_batch_effect(perturbedData)
             self.__add_batch_effect_to_ground_truth(perturbedData)
-            
         #add random noise to simulations
-        tmp_simulatedData = self.__perturb(perturbedData)
-        
+        tmp_simulatedData = perturbedData.copy(deep=True)
+        if(self.parameters.noise > 0.0):
+            tmp_simulatedData = self.__perturb(tmp_simulatedData)
+            
         #scale counts for library size effects
         if(not (self.parameters.libSize[0]==1 and self.parameters.libSize[1]==1)):
-            perturbedData = self.__insert_libsize_effect(perturbedData)
+            tmp_simulatedData = self.__insert_libsize_effect(tmp_simulatedData)
 
         #simulate AB binding efficiency
         #discard a fraction of proteinCounts as no AB has bound to them
@@ -1060,8 +1428,46 @@ class SingleCellSimulation():
         #remove negative counts from data, and substitute with zero
         self.simulatedData = tmp_simulatedData
         self.simulatedData = self.simulatedData.applymap(replace_negatives)
+        self.simulatedData["ab_count"] = self.simulatedData["ab_count"].round(decimals = 0)
 
         return(self.simulatedData)
+    
+    """ write all metadata to a file:
+    e.g.: the proteins per cluster that have a log-fold change comapred to control population
+    FORMAT: we have three columns: 
+    VARIABLE (type of metadata, e.g., logFoldProtein)
+    KEY: e.g.: the cluster for which this variable accounts, could also be another key later on which is protein specific, ...
+    VALUE: the actual value of fold-change
+    
+    """
+    def write_metadata(self):
+        
+        metadata = pd.DataFrame(columns=['VARIABLE', 'KEY', 'VALUE'])
+        
+        #ADD CLUSTER SPECIFIC PROTEIN FOLD CHANGES TO META DATA
+        clusterNum = 0
+        if(not len(self.parameters.clusterSpecificProteinNames)==0):
+            for sublist in self.parameters.clusterSpecificProteinNames:
+                # Iterate through each element in the sublist
+                for element in sublist:
+                    #create the new row
+                    if(clusterNum == 0):
+                        key = "control"
+                    else:
+                        key = "cluster_" + str(clusterNum)
+                    new_row = {'VARIABLE': "LogFoldProtein", 'KEY': key, 'VALUE': str(element)}
+                    metadata = metadata.append(new_row, ignore_index=True)
+                clusterNum += 1
+                
+        #write all beta factors:
+        # variable "LibsizeFactor"
+        for factor, key in self._libsizeFactors.items():
+            new_row = {'VARIABLE': "libsizeFactor", 'KEY': key, 'VALUE': str(factor)}
+            metadata = metadata.append(new_row, ignore_index=True)
+                
+        #WRITE THE CLUSTER SPECIFIC PROTEINS
+        metadata.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_metadata.tsv", sep='\t', index = False)
+        
 
     """ SAVE THE DATA """
     def save_data(self):
@@ -1071,7 +1477,7 @@ class SingleCellSimulation():
         if not os.path.isdir(self.output_dir):
             os.makedirs(self.output_dir)
 
-        
         self.simulatedData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_SIMULATED.tsv", sep='\t', index = False)
         self.groundTruthData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_GROUNDTRUTH.tsv", sep='\t', index = False)
+        
         printToTerminalOnce("\tData saved\n")

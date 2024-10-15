@@ -28,9 +28,11 @@ def parse_args():
 
     parser.add_argument('--filterAbTypeForSpearmanCorrelation', help='run spearman correlation additionally for a subset of the data, when looking only at specific protein types',
                         type=str)
-    parser.add_argument('--knn', help='number of KNN to calculate overlap of groundtruth/ normalized neighbors (default 20, -1 to skip step)', type=int, default=20)
+    parser.add_argument('--knn', help='number of KNN to calculate overlap of groundtruth/ normalized neighbors & for classification (default 20, -1 to skip step, 0 for a gradient of K which is only used for overlap)', type=int, default=20)
     parser.add_argument('--stdout', help='write unimportant messages to a file', default="",
                         type=str)
+    parser.add_argument('--metric', help = 'metric used for knn overlap/ classification: euclidean, manhattan or cosine',
+                        type=str, default='manhattan')
     #thread is the number of parallel runs of benchmarks: however it does not work on Linux server, therefore if threads is -1, we run one benchmark after the other
     #but allow sklearn for treatment detection to spawn threads as it wants
     parser.add_argument('--t', help='threads',
@@ -43,7 +45,7 @@ def parse_args():
     args = parser.parse_args()
     return(args)
 
-def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOverlap, iniFile, threadsSklearn, corrCutoff):
+def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOverlap, iniFile, threadsSklearn, corrCutoff, knnMetric):
     #initialization
     from NormalizedDataHandler import NormalizedDataHandler
     import Simulation
@@ -55,19 +57,24 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOve
     #additional visualizations
     benchmark.draw_tsne()
     benchmark.calculate_MMD_between_treatments()
-
-    #elaborate analysis of norm methods
-    treatmentNum = 1
-    dataTmp = pd.read_csv(dataset[0], sep = '\t')
-    treatmentNum = len(unique(dataTmp["cluster_id"]))
+    '''
     
-    if(treatmentNum > 1):
+    #evaluate clusterability with KNN
+    clusters = 1
+    dataTmp = pd.read_csv(dataset[0], sep = '\t')
+    clusters = len(unique(dataTmp["cluster_id"]))
+    if(clusters > 1):
         try:
-            benchmark.run_treatment_classification()
+            #knnOverlap can be zero to test ranges of KNN for KnnOverlap, however, for the clustering this makes no sense
+            # we set it to the default value 20
+            knnOverlapNew = knnOverlap
+            if(knnOverlap == 0):
+                knnOverlapNew = 20
+            benchmark.validate_clusterability(knnOverlapNew, knnMetric)
         except Exception as e: 
             print(e)
-            printToTerminalOnce("\n ERROR: Treatment classification failed\n")
-    '''
+            printToTerminalOnce("\n ERROR: Classification failed\n")
+    
     if(groundtruth):
         params = Simulation.Parameters(iniFile)
         benchmark.calculate_all_correlations()
@@ -97,16 +104,15 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOve
             print(e)
             printToTerminalOnce("\n ERROR: Detection of wanted Correlation failed\n")
         
-        #calculate detected cluster effect figures:
+        #validate the log fold change:
         #we miss the exact proteins for now since we replace manual pecific protiens in ini with random number of proteins
         '''if(params.numberOfClusters > 1):
             try:
-                benchmark.validate_treatment_effect(params.diffExProteins, params.abundanceFactors)
+                benchmark.validate_log2foldchange(params.diffExProteins, params.abundanceFactors)
             except Exception as e: 
                 print(e)
                 printToTerminalOnce("\n ERROR: Treatment Effect validation failed\n")
         '''
-
         if(params.batchFactors != None):
             #calculate removed batch effect
             try:
@@ -126,7 +132,7 @@ def make_benchmark(dataset, groundtruth, deleteBenchmark, spearmanFilter, knnOve
         #KNN overlap: calcualte table with percentage of same KNN
         if(knnOverlap != -1):
             try:
-                benchmark.validate_knn_overlap(knnOverlap)
+                benchmark.validate_knn_overlap(knnOverlap, knnMetric)
             except Exception as e: 
                 print(e)
                 printToTerminalOnce("\n ERROR: Calcualtion of KNN Overlap between Normalized/ groundtruth data failed\n")
@@ -165,7 +171,7 @@ def main():
 
     #make classifications
     for dataset in datasets:
-        make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.knn, args.iniFile, threadsSklearn, args.c)
+        make_benchmark(dataset, args.groundtruth, args.deleteOldData, args.filterAbTypeForSpearmanCorrelation, args.knn, args.iniFile, threadsSklearn, args.c, args.metric)
 
     if(args.stdout != ""):
         outfile.close()
