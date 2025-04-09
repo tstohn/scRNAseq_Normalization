@@ -1,5 +1,4 @@
 # ScNormalisation
-access token: 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
 
 
 ## TO DO:
