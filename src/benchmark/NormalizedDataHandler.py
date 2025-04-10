@@ -98,7 +98,7 @@ class NormalizedDataHandler:
         #open output file for writing
         folder_path = os.path.dirname(file_list[0])
         folder_name = os.path.basename(folder_path)
-
+        
         if not os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name):
             os.mkdir("bin/BENCHMARKED_DATASETS/"+folder_name)
         elif(os.path.exists("bin/BENCHMARKED_DATASETS/"+folder_name) & deleteBenchmark):
@@ -885,7 +885,6 @@ class NormalizedDataHandler:
             groundtruth = self.groundtruth.copy(deep = True)
             
             #if we run a gradient of various KNN thresholds (knnOverlap == 0)
-            print(knnOverlap)
             if(knnOverlap == 0):
                 #in this case we take neighborhood numbers from 5% of samples to 95%
                 sampleNumber = len(dataTmp.sample_id.unique())

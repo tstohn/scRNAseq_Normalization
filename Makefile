@@ -122,3 +122,49 @@ run_allProteinsFoldChange:
 
 run_linearTraj_small:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/linearTrajectorySmall.ini --d 1 -k --t 1
+
+#Test run for datasets to check how correlations react to random shufflingrun_linearTraj_small:
+run_randomShuffleTest:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/fewCorrelationsTest.ini --d 1 -k --t 1
+run_randomShuffleTest2:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/manyCorrelationsTest.ini --d 1 -k --t 1
+
+#tests for ewalds version 3 (26.11.24)
+run_definedCorr_increasedLibVar:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/definedCorrelations_1.ini --d 1 -k --t 5
+
+run_definedCorr2:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/definedCorrelations_2.ini --d 5 -k --t 5
+
+run_randomCorr:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/RandomHighCorrelations.ini --d 1 -k --t 5
+
+
+#analysEs FOR PAPER
+run_cell_protein_number:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/CellProtNum.ini --d 10 -k --t 20
+
+
+#ANALYSIS OF PROTNORM
+
+#analysis of increasing number of correlated proteins
+run_increasingNumberCorrelatedProteins:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/increasingNumberCorrelatedProteins.ini --d 10 -k --t 10
+
+#analysis of increasing libsize effect
+run_increasinglibsizeEffect:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/increasinglibsizeEffect.ini --d 10 -k --t 50
+#analysis of increasing libsize effect
+run_increasingNoiseEffect:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/increasingNoiseEffect.ini --d 10 -k --t 50
+
+#for this run with various protein numbers
+#additio0annly set a flag to select cell subsets
+run_increasingLibsize:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/increasinglibsizeEffect.ini --d 10 -k --t 50
+run_increasingNoise:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/increasingNoiseEffect.ini --d 10 -k --t 50
+
+
+run_increasingCellnumProtein:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/increasingCellProteinNumberEffect.ini --d 10 -k -c --t 50

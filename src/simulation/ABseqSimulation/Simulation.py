@@ -273,8 +273,8 @@ class Parameters():
                 info = re.match(("proteinCorrelationDists=\[(.*)\]"), line)
                 info = str(info[1]).split(";")
                 for element in info:
-                    parts = re.match(("\s*\[\s*(-*\d+[\.\d+]*)\s*,\s*(\d+[\.\d+]*)\s*,\s*([0-9]*)\s*\]\s*"), element)
-                    newCorrDist = self.ProteinCorrelation(float(parts[1]), float(parts[2]), int(parts[3]))
+                    parts = re.match(("\s*\[\s*(-*\d+[\.\d+]*)\s*,\s*(\d+[\.\d+]*)\s*,\s*(\d+[\.\d+]*)\s*\]\s*"), element)
+                    newCorrDist = self.ProteinCorrelation(float(parts[1]), float(parts[2]), int(float(parts[3])))
                     corrNumber += newCorrDist.number
                     if(self.proteinCorrelationDists is not None):
                         self.proteinCorrelationDists.append(newCorrDist)

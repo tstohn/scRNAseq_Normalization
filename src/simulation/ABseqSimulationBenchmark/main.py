@@ -28,6 +28,8 @@ from functions import *
              This means we MUST HAVE a DIRECTORY WITH ALL INIs and a several DIRECTORIES FOR EVERY INI WITH NORMALIZED FILES in bin
         --d : how often an experiemnt is repeated and averaged, on average this is 5 times
         --t : threads
+        
+        -c : subset the cell number, and run it as a new benchmark, this keeps exaclty the same cells and runs the benchmark
 """
 def parse_args():
 
@@ -39,6 +41,7 @@ def parse_args():
     parser.add_argument('-s', action='store_false')
     parser.add_argument('-b', action='store_true')
     parser.add_argument('-k', action='store_true')
+    parser.add_argument('-c', action='store_true')
     parser.add_argument('--d', help='duplicates',
                         type=int, default=5)
     
@@ -249,19 +252,22 @@ def delete_tmp_folder(folder):
     if(os.path.exists(folder)):
         shutil.rmtree(folder)
 
-def runSimulation(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, duplicates, keepData, fileBenchmarksToKeep, 
-                  recentSimulationNumber, numberOfSimulations, benchmarkOnly, knnOverlap, knnMetric):
+def runSimulation(ini, benchmarkBaseDir, stdoutFile, noExplicitelySetThreads, duplicates, keepData, fileBenchmarksToKeep, 
+                  recentSimulationNumber, numberOfSimulations, benchmarkOnly, knnOverlap, knnMetric, subsetCells):
     printToTerminalOnce("#  RUNNING SIMULATION[" + str(recentSimulationNumber) + "/" + str(numberOfSimulations) + "]")
     try:
-        for i in range(0,duplicates):
+        for duplicateIdx in range(0,duplicates):
             param = Parameters(ini)
-            benchmark = Benchmark(param, stdoutFile, noExplicitelySetThreads, keepData, benchmarkOnly, knnOverlap, knnMetric)
+            benchmark = Benchmark(param, benchmarkBaseDir, stdoutFile, noExplicitelySetThreads, keepData, benchmarkOnly, knnOverlap, knnMetric, subsetCells, duplicateIdx)
             benchmark.run()
-            #all the data is just in BENCHMARKED_DATASETS and is now copied in specific 'duplicate' folder
-            benchmark.moveIntoOneFolder(newSimulationDir, i)
-            benchmark.copyResultsIntoOneFile(newSimulationDir, i)
-            benchmark.deleteExcessData(newSimulationDir, fileBenchmarksToKeep) 
-
+            
+            #copy all the individual results in bin/BENCHMARK/xyz into one shared directory 
+            #and create one summary file
+            benchmark.copyResultsIntoOneFile(benchmarkBaseDir, duplicateIdx)
+            #if not keepDta==TRUE we only keep three representative datasets for benchmarks (first, middle and last one)
+            #it also only keeps the datasets of all cells (not for subsets of cells)
+            benchmark.deleteExcessData(benchmarkBaseDir, fileBenchmarksToKeep) 
+            
     except Exception as e: 
         print("#ERROR MESSAGE: \'" + str(e) + "\'\n")
         printToTerminalOnce("\n ERROR: Could not run Benchmark on " + ini + "\n")
@@ -296,6 +302,7 @@ def main():
         tmpDir = ""
         keepData = False
         benchmarkOnly = False
+        subsetCells = False
 
         fileBenchmarksToKeep = []
         if(args.s):
@@ -306,6 +313,8 @@ def main():
             keepData = True
         if(args.b):
             benchmarkOnly = True
+        if(args.c):
+            subsetCells = True
 
         parameterFolder = tmpDir
 
@@ -316,15 +325,15 @@ def main():
         iniFilePathList = [join(str(parameterFolder),x) for x in iniFileList if regex.match(x)]
         #generate a master directory for all experiments
         simulationName = os.path.splitext(os.path.basename(args.dir))[0]
-        newSimulationDir = "./bin/BENCHMARKED_DATASETS/Simulations_" + simulationName + "_" + str(datetime.now())
-        os.makedirs(newSimulationDir)
+        benchmarkBaseDir = "./bin/BENCHMARKED_DATASETS/Simulations_" + simulationName + "_" + str(datetime.now())
+        os.makedirs(benchmarkBaseDir)
 
         #run this as threads
         pool = Pool(pool_size)
         numberOfSimulations = len(iniFilePathList)
         recentSimulationNumber = 1
         for ini in iniFilePathList:
-            pool.apply_async(runSimulation, args=(ini, newSimulationDir, stdoutFile, noExplicitelySetThreads, args.d, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations, benchmarkOnly, args.knn, args.metric))
+            pool.apply_async(runSimulation, args=(ini, benchmarkBaseDir, stdoutFile, noExplicitelySetThreads, args.d, keepData, fileBenchmarksToKeep, recentSimulationNumber, numberOfSimulations, benchmarkOnly, args.knn, args.metric, subsetCells))
             recentSimulationNumber = recentSimulationNumber + 1
 
         pool.close()

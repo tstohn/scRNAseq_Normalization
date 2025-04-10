@@ -16,6 +16,9 @@ source(here("src/normalization", "functions.R"))
 library("edgeR")
 suppressPackageStartupMessages(deployrUtils::deployrPackage("compositions"))
 library(Seurat)
+#ProtNorm normalization
+source(here("src/normalization", "ProtNorm.R"))
+
 
 # NORNALIZATION FUNCTIONS
 
@@ -415,9 +418,10 @@ run_normalization<-function(dataset, method)
 {
   datapath<-get_dataset_path()
   datapath<-paste(datapath, "/", dataset, sep="")
+
   data<-read_tsv(datapath, col_types = cols())
   dir.create(paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset)), showWarnings = FALSE)
-  
+
   columns = get_dataset_specific_column_names(datapath)
   dataset_processing_variables = get_prefilter_thresholds(datapath)
   
@@ -545,9 +549,33 @@ run_normalization<-function(dataset, method)
     output_table<-paste0(here("bin/FILTERED_DATASETS/"), tools::file_path_sans_ext(dataset), ".tsv")
     write_tsv(data, file=output_table)
   }
+  else if(method=="PROTNORM")
+  {
+    normalized_data <- run_protNorm(data, betaGammaRatio = 5)
+    normalized_data <- data %>% 
+      left_join(normalized_data, by = c("ab_id", "sample_id"))
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/PROTNORM.tsv")
+    write_tsv(normalized_data, file=output_table)
+  }
+  else if(method=="PROTNORM2")
+  {
+    normalized_data <- run_protNorm2(data, alpha = NULL)
+    normalized_data <- data %>% 
+      left_join(normalized_data, by = c("ab_id", "sample_id"))
+    if(dataset_processing_variables[3] == 1)
+    {
+      normalized_data <- remove_batch_effect(normalized_data, log_transform = FALSE)
+    }
+    output_table<-paste0(here("bin/NORMALIZED_DATASETS/"), tools::file_path_sans_ext(dataset), "/PROTNORM2.tsv")
+    write_tsv(normalized_data, file=output_table)
+  }
   else
   {
-    print(paste0("WARNING: No normalization metjod called: ", method))
+    print(paste0("WARNING: No normalization method called: ", method))
   }
 }
 
