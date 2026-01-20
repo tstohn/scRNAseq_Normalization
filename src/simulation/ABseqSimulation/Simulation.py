@@ -130,6 +130,16 @@ class Parameters():
     noiseExtrinsic=0.0
     proteinNoise=0.0
     
+    #cell size parameters
+    cellSize=[None, None]
+    cellSizeScalePerc=0.0
+    
+    abundanceRulers=None
+    concentrationRulers=None
+
+    #if this is set noise is not sampled from Gaussian noise but with NB
+    noiseAlpha=None
+    
     #CORRELATIONS 1.)
     randomProteinCorrelations=0
     betaParameter=0
@@ -232,6 +242,24 @@ class Parameters():
                 assert(len(info)==2)
                 self.libSize[0]=float(info[0])
                 self.libSize[1]=float(info[1])
+            elif(str.startswith(line, "cellSize=")):
+                info = re.match(("cellSize=\[(.*)\]"), line)
+                info = str(info[1]).split(",")
+                assert(len(info)==2)
+                self.cellSize[0]=float(info[0])
+                self.cellSize[1]=float(info[1])
+            elif(str.startswith(line, "cellSizeScalePerc=")):
+                info = re.match(("cellSizeScalePerc=(.*)"), line)
+                self.cellSizeScalePerc = float(info[1].rstrip("\n"))
+            elif(str.startswith(line, "abundanceRulers=")):
+                info = re.match(("abundanceRulers=(.*)"), line)
+                self.abundanceRulers = int(info[1].rstrip("\n"))
+            elif(str.startswith(line, "concentrationRulers=")):
+                info = re.match(("concentrationRulers=(.*)"), line)
+                self.concentrationRulers = int(info[1].rstrip("\n"))
+            elif(str.startswith(line, "noiseAlpha=")):
+                info = re.match(("noiseAlpha=(.*)"), line)
+                self.noiseAlpha = float(info[1].rstrip("\n"))
             elif(str.startswith(line, "abDuplicateRange=")):
                 info = re.match(("abDuplicateRange=\[(.*)\]"), line)
                 info = str(info[1]).split(",")
@@ -394,7 +422,8 @@ class SingleCellSimulation():
     #(this is different to proteinDist from parameters, which stores the distributions of mu, size for the whole dataset)
 
     """ MODELLED DATA """
-    groundTruthData = None
+    groundTruthData = None #groundtruth concentration
+    groundTruthMolecule = None #groundtruth molecule number
     #sample * AB matrix of simulated data
     simulatedData = None
 
@@ -574,6 +603,42 @@ class SingleCellSimulation():
         self._libsizeFactors = perturbDict
 
         return(data)
+    
+    """ model cell size effect:
+        simply draw values from a gaussian dist with mean and std and then multipley protein counts with
+        this number. Not all proteins are scaled but only the ones sampled, where cellSizeScalePerc is the percentage
+        of proteins that get scaled by cellSize
+    """
+    def __insert_cellsize_effect(self, data):
+        print("Simulating different cell size.")
+        
+        #1.) sample proteins that are scaled with size
+        allProteins = data["ab_id"].unique()
+        self._allProteinsNames = allProteins
+        scaleProteins = np.random.choice(allProteins, size = int(self.parameters.cellSizeScalePerc*len(allProteins)), replace=False)
+
+        #2.) get scaling factors per cell
+        sizeFrame = pd.DataFrame()
+        sizeFrame["sample_id"] = data["sample_id"].unique()
+        #sample cellsize-factors from log normal dist: 1.value = mean, 2.= std
+        sizeFrame["factor"] = np.random.normal(self.parameters.cellSize[0],self.parameters.cellSize[1], len(sizeFrame))
+        sizeDict = dict(zip(sizeFrame["sample_id"], sizeFrame["factor"]))
+        self._cellSizeFactors = sizeDict
+
+        #3.) apply cell-size scaling
+        # a) divide proteins in cells that SCALE/NOT-SCALE by the cellSize factor - this changes the groundTruth (concentration)
+        # b) multipley ALL proteins with this scaling factor but DIVIDE the non-scaling ones by the factor
+        notScalingProtMask = ~data["ab_id"].isin(scaleProteins)
+        size_factor = data["sample_id"].map(sizeDict)
+
+        # divide non-scaling ones by factor and multiply all with factor
+        data.loc[notScalingProtMask, "ab_count"] = data.loc[notScalingProtMask, "ab_count"] / size_factor[notScalingProtMask]
+        # now copy data - so data stays the gourndTruth data and we add additional cells-size scaling
+        moleculeData = data.copy()
+        moleculeData["ab_count"] = moleculeData["ab_count"] * size_factor
+        self._scaleProteinsWithCellSize = scaleProteins
+        
+        return(moleculeData)
 
     def __covariance(self, x, y, corr):
         
@@ -1369,6 +1434,86 @@ class SingleCellSimulation():
     def __add_batch_effect_to_ground_truth(self, newData):
         self.groundTruthData = pd.merge(self.groundTruthData,newData[['sample_id','ab_id','batch_id']],on=['sample_id','ab_id'], how='left')
         
+    def __addRulers(self):
+        #concentration rulers
+        if(self.parameters.concentrationRulers is not None):
+            #sample a random protein and get mean of this one, add it to groundtruth data
+            # for moelcule data multiply it with cell-size
+            for id in range(self.parameters.concentrationRulers):
+                prot = np.random.choice(self.groundTruthData["ab_id"].unique())
+                mean_count = self.groundTruthData.loc[self.groundTruthData["ab_id"] == prot, "ab_count"].mean()
+                CONST_AB_ID = "AB_CONCENTRATION_RULER_" + str(id)
+                CONST_AB_COUNT = mean_count
+                # get unique sample_ids
+                sample_ids = self.groundTruthData["sample_id"].unique()
+                # create new rows
+                new_rows = pd.DataFrame({
+                    "sample_id": sample_ids,
+                    "ab_id": CONST_AB_ID,
+                    "ab_count": CONST_AB_COUNT
+                })
+                # add missing columns (if data has more columns)
+                for col in self.groundTruthData.columns:
+                    if col not in new_rows.columns:
+                        new_rows[col] =0
+                        
+                # append to groundtruth data (concentration)
+                concentrationCounts = new_rows.copy()
+                self.groundTruthData = pd.concat([self.groundTruthData, concentrationCounts], ignore_index=True)
+                self._scaleProteinsWithCellSize = np.append(self._scaleProteinsWithCellSize, CONST_AB_ID)
+                self._allProteinsNames = np.append(self._allProteinsNames, CONST_AB_ID)
+                
+                #append molecule Count data
+                size_factor = new_rows["sample_id"].map(self._cellSizeFactors)
+                new_rows["ab_count"] = new_rows["ab_count"] * size_factor
+                self.groundTruthMolecule = pd.concat([self.groundTruthMolecule, new_rows], ignore_index=True)
+
+        #abundance rulers: sample again but this time divide the concentration by cell size
+        if(self.parameters.abundanceRulers is not None):
+            #sample a random protein and get mean of this one, add it to groundtruth data
+            # for moelcule data multiply it with cell-size
+            for id in range(self.parameters.abundanceRulers):
+                prot = np.random.choice(self.groundTruthData["ab_id"].unique())
+                mean_count = self.groundTruthData.loc[self.groundTruthData["ab_id"] == prot, "ab_count"].mean()
+                CONST_AB_ID = "AB_ABUNDANCE_RULER_" + str(id)
+                CONST_AB_COUNT = mean_count
+                # get unique sample_ids
+                sample_ids = self.groundTruthData["sample_id"].unique()
+                # create new rows
+                new_rows = pd.DataFrame({
+                    "sample_id": sample_ids,
+                    "ab_id": CONST_AB_ID,
+                    "ab_count": CONST_AB_COUNT
+                })
+                # add missing columns (if data has more columns)
+                for col in self.groundTruthData.columns:
+                    if col not in new_rows.columns:
+                        new_rows[col] =0
+
+                #append molecule Count data: abudnances are now stable
+                abundanceCounts = new_rows.copy()
+                self.groundTruthMolecule = pd.concat([self.groundTruthMolecule, abundanceCounts], ignore_index=True)
+                self._allProteinsNames = np.append(self._allProteinsNames, CONST_AB_ID)
+
+                # append to groundtruth data (concentration)
+                size_factor = new_rows["sample_id"].map(self._cellSizeFactors)
+                new_rows["ab_count"] = new_rows["ab_count"] / size_factor
+                self.groundTruthData = pd.concat([self.groundTruthData, new_rows], ignore_index=True)
+    
+    def __applyNoiseNB(self, data):
+        alpha = self.parameters.noiseAlpha  # dispersion parameter
+        counts = data["ab_count"].to_numpy(dtype=float)
+
+        # NB params: r = 1/alpha, p = 1 / (1 + alpha * mu)
+        r = 1.0 / alpha
+        p = 1.0 / (1.0 + alpha * counts)
+
+        # sample one NB value per row
+        ab_count_new = np.random.negative_binomial(n=r, p=p)
+
+        # replace ab_count with the noisy values
+        data["ab_count"] = ab_count_new
+        
     """ MAIN FUNCTION: 
     1. generates ground truth & 
     2. simulates the protein count detection
@@ -1403,17 +1548,36 @@ class SingleCellSimulation():
         if(self.parameters.abDuplicates > 1):
             self.groundTruthData = self.__insert_ab_duplicates(self.groundTruthData)
 
+        # add cell-size effect - CAREFUL, this changes the groundtruth data (dividing by cellSize factor for non-scaling proteins)
+        setgroundtruthTomoldeculeCount = False
+        if(not (self.parameters.cellSize[0] == None)):
+            # it returns the moleculeCount data (abundances), concentrations are in groundtruthData
+            self.groundTruthMolecule = self.__insert_cellsize_effect(self.groundTruthData)
+            setgroundtruthTomoldeculeCount = True
+            self.groundTruthMolecule["ab_count"] = self.groundTruthMolecule["ab_count"].round(decimals = 0)
+        self.groundTruthData["ab_count"] = self.groundTruthData["ab_count"].round(decimals = 0)
+
+        #if we have abundance/concentration rulers add them
+        self.__addRulers()
+
         #scale counts for batch effects (NOT USED AT THIS POINT)
         perturbedData = self.groundTruthData.copy(deep=True)
+        if(setgroundtruthTomoldeculeCount):
+            perturbedData = self.groundTruthMolecule
         if(not (self.parameters.batchFactors is None)):
             perturbedData = self.__insert_batch_effect(perturbedData)
             self.__add_batch_effect_to_ground_truth(perturbedData)
-        #add random noise to simulations
+        
+        #add random noise to simulations - we continue with the molecule counts!
+        #this is ether gaussian noise (if noise if given)
+        # or NB noise for noiseAlpha
         tmp_simulatedData = perturbedData.copy(deep=True)
         if(self.parameters.noise > 0.0):
             tmp_simulatedData = self.__perturb(tmp_simulatedData)
+        elif(self.parameters.noiseAlpha is not None):
+            self.__applyNoiseNB(tmp_simulatedData)
             
-        #scale counts for library size effects
+        #scale counts for library size effects (this is our beta factor noise)
         if(not (self.parameters.libSize[0]==1 and self.parameters.libSize[1]==1)):
             tmp_simulatedData = self.__insert_libsize_effect(tmp_simulatedData)
 
@@ -1464,7 +1628,20 @@ class SingleCellSimulation():
         for factor, key in self._libsizeFactors.items():
             new_row = {'VARIABLE': "libsizeFactor", 'KEY': key, 'VALUE': str(factor)}
             metadata = metadata.append(new_row, ignore_index=True)
-                
+            
+        #write cell size information
+        if(self.parameters.cellSize != None):
+            for factor, key in self._cellSizeFactors.items():
+                new_row = {'VARIABLE': "cellSizeFactor", 'KEY': key, 'VALUE': str(factor)}
+                metadata = metadata.append(new_row, ignore_index=True)
+            # write proteins that are sampled to scale qith cell-size
+            for prot in self._allProteinsNames:
+                value = False
+                if(prot in self._scaleProteinsWithCellSize):
+                    value = True
+                new_row = {'VARIABLE': "scaledWithCellSize", 'KEY': prot, 'VALUE': str(value)}
+                metadata = metadata.append(new_row, ignore_index=True)
+                    
         #WRITE THE CLUSTER SPECIFIC PROTEINS
         metadata.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_metadata.tsv", sep='\t', index = False)
         
@@ -1478,6 +1655,9 @@ class SingleCellSimulation():
             os.makedirs(self.output_dir)
 
         self.simulatedData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_SIMULATED.tsv", sep='\t', index = False)
+        #concentration data
         self.groundTruthData.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_GROUNDTRUTH.tsv", sep='\t', index = False)
-        
+        #molecule count data
+        self.groundTruthMolecule.to_csv(self.output_dir + "/" + self.parameters.simulationName + "_GROUNDTRUTH_MOLECULECOUNT.tsv", sep='\t', index = False)
+
         printToTerminalOnce("\tData saved\n")

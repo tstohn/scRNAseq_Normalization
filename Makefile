@@ -168,3 +168,6 @@ run_increasingNoise:
 
 run_increasingCellnumProtein:
 	python3 ./src/simulation/ABseqSimulationBenchmark/main.py ./simulation_inis/increasingCellProteinNumberEffect.ini --d 10 -k -c --t 50
+
+run_cellSize_test:
+	python3 ./src/simulation/ABseqSimulationBenchmark/main.py simulation_inis/3_CellSize_simulation.ini --d 1 -k --t 50

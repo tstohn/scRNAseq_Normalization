@@ -30,6 +30,9 @@ from functions import *
         --t : threads
         
         -c : subset the cell number, and run it as a new benchmark, this keeps exaclty the same cells and runs the benchmark
+             to subset the cells from simulations and run normalizations on all these subsets:              
+             the subsets are then defined as a fraction of the simulated cells: subsetList=[1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.05]
+
 """
 def parse_args():
 

@@ -79,13 +79,29 @@ class NormalizedDataHandler:
 
         #generate dictionary of normalized data
         self.groundtruth = pd.DataFrame()
+        moleculeCountGiven = False
+        groundTruthName = ""
+        groundTruthMoleculeName = ""
         for file in file_list:
             data_name = os.path.basename(os.path.splitext(file)[0])
-            if("Groundtruth" in data_name):
+
+            if(data_name == "Groundtruth"):
                 data_content = pd.read_csv(file, sep = '\t')
                 self.groundtruth = data_content
+                continue
+            elif(data_name == "Groundtruth_MOLECULECOUNT"):
+                data_content = pd.read_csv(file, sep = '\t')
+                self.groundtruth_molecule = data_content
+                moleculeCountGiven = True
+                continue
             data_content = pd.read_csv(file, sep = '\t')
             data_dict[data_name] = data_content
+        
+        #add the groundtruth depending on the one given (molecule counts or concentration counts)
+        if(moleculeCountGiven):
+            data_dict["Groundtruth"] = self.groundtruth_molecule
+        else:
+            data_dict["Groundtruth"] = self.groundtruth
 
         #dictionary with data for all normalization methods
         sortedDataDict = dict( sorted(data_dict.items(), key=lambda x: x[0].lower()) )

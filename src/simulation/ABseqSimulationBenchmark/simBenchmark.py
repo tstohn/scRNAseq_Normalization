@@ -14,6 +14,7 @@ import shutil
 import sys
 sys.path.append('./src/methods/ToolBox')
 from functions import *
+from pathlib import Path
 
 class Parameters():
 
@@ -145,6 +146,13 @@ class Benchmark():
         newGroundTruthName = "Groundtruth.tsv"
         newSimulatedName = "Simulation.tsv"
         groundTruthFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newGroundTruthName)
+        
+        # the molecule-count file of groundtruth when running with cell-size simulations
+        groundTruthMoleculeCountName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini')) + "_GROUNDTRUTH_MOLECULECOUNT.tsv"
+        newGroundTruthMoleculeCountName = "Groundtruth_MOLECULECOUNT.tsv"
+        groundTruthMoleculeCountFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newGroundTruthMoleculeCountName)
+        groundTruthMoleculeCountResultFilePath = simulationFilePath + groundTruthMoleculeCountName                              
+
         simulatedFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newSimulatedName)
         metaDataFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/metaData.tsv")
         
@@ -203,11 +211,23 @@ class Benchmark():
             simulationNames = []
             
             subsetIdx = 0
+            
+                            
+            #-------------------
+            # IN CASE WE SUBSET CELLs (TO RUN SIMULATIONS WITH DIFFERENT CELL-NUMBERS)
+            #-------------------
             for subsetFraction in subsetList:
                 
                 #indexing the number of subsets: the first one takes 100% and should have no subset label
+                #after the first simulation with 100% of cells we create subsets and increase the subsetIdx
                 if(subsetIdx > 0):
 
+                    #abort subset simulations of we also simulate the cells-size
+                    if(Path(groundTruthMoleculeCountResultFilePath).exists()):
+                        printToTerminalOnce("We can not run subset simulations together with cell-size simulations at this point!\n")
+                        printToTerminalOnce("Continue with 100% of cells\n")
+                        continue
+                    
                     #renaming bunch of files
                     simulationName = origionalSimulationName + "_SUBSET_" + str(subsetIdx)
                     simulatedFileName = simulationName + "_SIMULATED.tsv"
@@ -218,14 +238,14 @@ class Benchmark():
                     if os.path.exists(folder_path):
                         shutil.rmtree(folder_path, ignore_errors=True)
      
-                    groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))+ "_SUBSET_" + str(subsetIdx) + "_GROUNDTRUTH.tsv"
                     simulatedName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))+ "_SUBSET_" + str(subsetIdx) + "_SIMULATED.tsv"
                     metaData = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))+ "_SUBSET_" + str(subsetIdx) + "_metadata.tsv"
                     
+                    groundTruthName = os.path.basename(removesuffix(self.parameters.iniFile, '.ini'))+ "_SUBSET_" + str(subsetIdx) + "_GROUNDTRUTH.tsv"
                     groundTruthFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newGroundTruthName)
                     simulatedFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/" + newSimulatedName)
                     metaDataFile = ("./bin/NORMALIZED_DATASETS/" + simulationName + "/metaData.tsv")
-
+                    
                     samples = self.__subset_samples(groundTruthNameOrigional, subsetFraction)
 
                     self.__write_new_subset_files(groundTruthNameOrigional, "./bin/SIMULATIONS/" + groundTruthName, samples, "sample_id")
@@ -244,6 +264,10 @@ class Benchmark():
                     subprocess.run([commandString], shell = True, check = True)
                     
                 simulationNames.append(simulationName)
+                
+                #-------------------
+                # RUN NORMALIZATIONS
+                #-------------------
                 for norm in self.parameters.normMethods:
                     if(norm == "GRAPH"):
                         commandString = ""
@@ -288,12 +312,20 @@ class Benchmark():
                             print(e)
                             printToTerminalOnce("ERROR: Normalization method " + norm + " failed for " + self.parameters.iniFile)
 
+                #-------------------
+                # MOVE FILES FROM SIMULATION-FOLDER TO NORMALIZED-FOLDER
+                #-------------------
                 try:
 
                     #move also ground truth into normalization folder
                     groundTruthResultFilePath = simulationFilePath + groundTruthName
                     commandString = "cp " + groundTruthResultFilePath + " " + groundTruthFile
                     subprocess.run([commandString], shell = True, check = True)
+                    #copy the molecule counts if they exist
+                    if Path(groundTruthMoleculeCountResultFilePath).exists():
+                        commandString = "cp " + groundTruthMoleculeCountResultFilePath + " " + groundTruthMoleculeCountFile
+                        subprocess.run([commandString], shell = True, check = True)
+                        
                     #move also simulated file into normalization folder
                     simulatedResultFilePath = simulationFilePath + simulatedName
                     commandString = "cp " + simulatedResultFilePath + " " + simulatedFile
@@ -313,6 +345,15 @@ class Benchmark():
                     groundTruthDataStream = open(groundTruthFile, "wt")
                     groundTruthDataStream.write(dataGroundTruth)
                     groundTruthDataStream.close()
+                    # also do it for molecule file if present
+                    if(Path(groundTruthMoleculeCountFile).exists()):
+                        groundTruthMolDataStream = open(groundTruthMoleculeCountFile, "rt")
+                        dataGroundTruthMol = groundTruthMolDataStream.read()
+                        dataGroundTruthMol = dataGroundTruthMol.replace('ab_count', 'ab_count_normalized')
+                        groundTruthMolDataStream.close()
+                        groundTruthMolDataStream = open(groundTruthMoleculeCountFile, "wt")
+                        groundTruthMolDataStream.write(dataGroundTruthMol)
+                        groundTruthMolDataStream.close()
                     #from simulated file
                     simulatedDataStream = open(simulatedFile, "rt")
                     dataSimulated = simulatedDataStream.read()
